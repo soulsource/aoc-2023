@@ -7,6 +7,8 @@ package «aoc-2023» where
 lean_lib «Day1» where
   -- add library configuration options here
 
+lean_lib «Day2» where
+
 lean_lib «Common» where
 
 @[default_target]
