@@ -1,5 +1,6 @@
 import Common
 
+namespace Day2
 structure Draw (α : Type) where
   red : α
   green : α

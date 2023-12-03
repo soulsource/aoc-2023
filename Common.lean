@@ -3,3 +3,4 @@ import Common.Option
 import Common.DayPart
 import Common.String
 import Common.List
+import Common.Char
