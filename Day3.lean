@@ -13,22 +13,22 @@ def Coordinate.default : Coordinate := {x := 0, y := 0}
 /--Returns the adjacent fields, row-major order (this is important)-/
 def Coordinate.adjacents : Coordinate → List Coordinate
 | { x := 0, y := 0} => [
-             .mk 1 0,
-    .mk 1 1, .mk 0 1
+                     ⟨1,0⟩,
+    ⟨0,1⟩,           ⟨1,1⟩
   ]
 | { x := 0, y := y} => [
-    .mk 0 y.pred, .mk 1 y.pred,
-                  .mk 1 y,
-    .mk 0 y.succ, .mk 1 y.succ
+    ⟨0,y.pred⟩,      ⟨1,y.pred⟩,
+                     ⟨1,y⟩,
+    ⟨0,y.succ⟩,      ⟨1,y.succ⟩
   ]
 | { x := x, y := 0} => [
-    .mk x.pred 0,          .mk x.succ 0,
-    .mk x.pred 1, .mk x 1, .mk x.succ 1
+    ⟨x.pred,0⟩,                  ⟨x.succ,0⟩,
+    ⟨x.pred,1⟩,      ⟨x,1⟩,      ⟨x.succ,1⟩
   ]
 | { x := x, y := y} => [
-    .mk x.pred y.pred, .mk x y.pred, .mk x.succ y.pred,
-    .mk x.pred y,                    .mk x.succ y,
-    .mk x.pred y.succ, .mk x y.succ, .mk x.succ y.succ
+    ⟨x.pred,y.pred⟩, ⟨x,y.pred⟩, ⟨x.succ,y.pred⟩,
+    ⟨x.pred,y⟩,                  ⟨x.succ,y⟩,
+    ⟨x.pred,y.succ⟩, ⟨x,y.succ⟩, ⟨x.succ,y.succ⟩
   ]
 
 structure Part : Type 0 where
@@ -109,7 +109,7 @@ def part2 (schematic : Schematic) : Nat :=
   let numbersNextGearSymbols := List.dedup <$> gearSymbols.map λgs ↦
     gs.position.adjacents.filterMap numberCoordinates.find?
   let gearSymbols := numbersNextGearSymbols.filter (List.length · == 2)
-  let gearRatios : List Nat := gearSymbols.map $ List.foldl (· * PartNumber.value ·) 1
+  let gearRatios := gearSymbols.map $ List.foldl (· * PartNumber.value ·) 1
   gearRatios.foldl (· + ·) 0
 
 open DayPart
