@@ -59,7 +59,7 @@ private def extractParts : List (Coordinate × Char) → List Part :=
   (List.map (uncurry $ flip Part.mk)) ∘ (List.filter $ not ∘ λ (sc : Coordinate × Char) ↦ sc.snd.isWhitespace || sc.snd.isDigit || sc.snd == '.')
 
 private def extractPartNumbers (input : List (Coordinate × Char)) : List PartNumber :=
-  let rec helper : (List (Coordinate × Char)) → Option PartNumber → List PartNumber := λ
+  let rec helper := λ
   | [], none => []
   | [], some acc => [acc] -- if we are still accumulating a number at the end, commit
   | a :: as, none =>
@@ -92,28 +92,25 @@ def parse (schematic : String) : Option Schematic := do
 def part1 (schematic : Schematic) : Nat :=
   -- fast lookup: We need to know if a part is at a given coordinate
   open Lean(HashSet) in
-  let partCoordinates : HashSet Coordinate :=
-    HashSet.insertMany HashSet.empty $ schematic.parts.map Part.position
-  let partNumbers := schematic.numbers.filter λ number ↦
-    number.positions.any λ position ↦
+  let partCoordinates := HashSet.insertMany HashSet.empty $ schematic.parts.map Part.position
+  let partNumbers := schematic.numbers.filter λnumber ↦
+    number.positions.any λposition ↦
       position.adjacents.any partCoordinates.contains
-  partNumbers.foldl (. + PartNumber.value .) 0
+  partNumbers.foldl (· + PartNumber.value ·) 0
 
 def part2 (schematic : Schematic) : Nat :=
-  -- and now it is obvous that keeping the parsed input free of opinions was a good idea.
+  -- and now it is obvious that keeping the parsed input free of opinions was a good idea.
   -- because here we need quick lookup for the numbers, not the parts.
   open Lean(HashMap) in
   let numberCoordinates : HashMap Coordinate PartNumber :=
-    Lean.HashMap.ofList $ schematic.numbers.bind $ λ pn ↦
-     pn.positions.map λ pos ↦
-      (pos, pn)
-  let gearSymbols := schematic.parts.filter (Part.symbol . == '*')
+    Lean.HashMap.ofList $ schematic.numbers.bind $ λ pn ↦ pn.positions.map (·, pn)
+  let gearSymbols := schematic.parts.filter (Part.symbol · == '*')
   -- but the symbols aren't enough, they need to be adjacent to **exactly** 2 numbers
-  let numbersNextGearSymbols := List.dedup <$> gearSymbols.map λ gs ↦
+  let numbersNextGearSymbols := List.dedup <$> gearSymbols.map λgs ↦
     gs.position.adjacents.filterMap numberCoordinates.find?
-  let gearSymbols := numbersNextGearSymbols.filter (List.length . == 2)
-  let gearRatios : List Nat := gearSymbols.map λ l ↦ l.map PartNumber.value |> List.foldl (.*.) 1
-  gearRatios.foldl (.+.) 0
+  let gearSymbols := numbersNextGearSymbols.filter (List.length · == 2)
+  let gearRatios : List Nat := gearSymbols.map $ List.foldl (· * PartNumber.value ·) 1
+  gearRatios.foldl (· + ·) 0
 
 open DayPart
 
@@ -125,19 +122,3 @@ instance : DayPart.Part ⟨3,_⟩ Parts.One (ι := Schematic) (ρ := Nat) where
 
 instance : DayPart.Part ⟨3,_⟩ Parts.Two (ι := Schematic) (ρ := Nat) where
   run := some ∘ part2
-
-private def testInput := "467..114..
-...*......
-..35..633.
-......#...
-617*......
-.....+.58.
-..592.....
-......755.
-...$.*....
-.664.598..
-"
-
-#eval parse testInput
-
-#eval part1 <$> parse testInput
