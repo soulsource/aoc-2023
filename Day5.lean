@@ -123,10 +123,24 @@ private def parseMapping {α β : Type} [NatId α] [NatId β] (input : String) :
   | [a,b,c] => some $ {inputStart := NatId.fromNat b, outputStart := NatId.fromNat a, length := c}
   | _ => none
 
+private def Mapping.overlap {α β : Type} [NatId α] [NatId β] (a : Mapping α β) (b : Mapping α β) : Bool :=
+  let aStart := NatId.toNat $ a.inputStart
+  let aEnd := aStart + a.length
+  let bStart := NatId.toNat $ b.inputStart
+  let bEnd := bStart + b.length
+  (bStart ≥ aStart && bStart < aEnd)
+   || (bEnd ≥ aStart && bEnd < aEnd)
+   || (aStart ≥ bStart && aStart < bEnd)
+   || (aEnd ≥ bStart && aEnd < bEnd)
+
 private def parseMappings (α β : Type) [NatId α] [NatId β] (input : String) (header : String) : Option $ Mappings α β :=
   if input.startsWith header then
     let lines := String.trim <$> input.splitOn "\n" |> List.drop 1 |> List.filter (not ∘ String.isEmpty)
     let mappings := lines.mapM parseMapping
+    let rec overlapHelper := λ (a : List $ Mapping α β) ↦ match a with
+      | [] => false
+      | a :: as => as.any (λ b ↦ a.overlap b) || overlapHelper as
+    let mappings := mappings.filter overlapHelper --make sure no ranges overlap. That would be faulty
     Mappings.mk <$> mappings
   else
    none
@@ -169,68 +183,103 @@ def part1 (input : ((List Seed) × Almanach)) : Option Nat :=
 
 
 -- Part 2 seems unmanageable by brute force.
--- So, let's rather combine the mappings in a smart way, and then invert them.
--- Then we can do binary search if any seed is in the domain of the combined mapping.
--- if not, the answer is just the smallest seed.
+-- So, let's rather combine the mappings in a smart way, such that we don't need to brute-force
+-- anything
 
-private def Mappings.combine {α β γ : Type} [NatId α] [NatId β] [NatId γ] (a : Mappings α β) (b : Mappings β γ) : Mappings α γ :=
-  -- the combined mapping contains all ranges in b that aren't "shielded" by ranges of a.
-  -- then it contains all ranges of a, but their codomain needs to be checked if it overlaps with
-  --    any ranges in b, and if yes, those ranges need to be split accordingly.
-  let domain := λ {δ ε : Type} [NatId δ] [NatId ε] (e :Mapping δ ε) ↦ (NatId.toNat e.inputStart, NatId.toNat e.inputStart + e.length)
-  let codomain := λ {δ ε : Type} [NatId δ] [NatId ε] (e :Mapping δ ε) ↦ (NatId.toNat e.outputStart, NatId.toNat e.outputStart + e.length)
-  let unshieldedB : List (Mapping α γ) := b.mappings.bind λ bm ↦
-    let bmd := domain bm
-    let bmcd := codomain bm
-    let shielded := a.mappings.filterMap λ am ↦
-      let amd := domain am
-      let s := Nat.max amd.fst bmd.fst
-      let e := Nat.min amd.snd bmd.snd
-      if e > s then some (s,e) else none
-    -- add a range before and after to shielded, then we can take those between
-    -- we anyhow need to sort shielded, sooo
-    let shielded := (bmd.fst, bmd.fst) :: (bmd.snd, bmd.snd) :: shielded
-    let shielded := shielded.quicksortBy (·.fst < ·.fst)
-    let rs := shielded.zip (shielded.drop 1)
-    let rs : List (Nat × Nat):= rs.map λ x ↦ (x.fst.snd, x.snd.fst)
-    let rs := rs.filter λ l ↦ l.snd > l.fst -- skip emtpy, they are just noise
-    rs.map λ (x : Nat × Nat) ↦
-      let is : α := NatId.fromNat x.fst
-      let os : γ := NatId.fromNat $ bmcd.fst + x.fst - bmd.fst
-      let l : Nat := (x.snd - x.fst)
-      { inputStart := is, outputStart := os, length := l}
-  --TODO: Unify the onlyAffectedByA and affectedByBoth computations.
-  let onlyAffectedByA : List (Mapping α γ) := a.mappings.bind λ am ↦
-    let amd := domain am
-    let amcd := codomain am
-    let overlapping := b.mappings.filterMap λ bm ↦
-      let bmd := domain bm
-      let s := Nat.max amcd.fst bmd.fst
-      let e := Nat.min amcd.snd bmd.snd
-      if e > s then some (s,e) else none
-    -- overlapping is in the **codomain** of a. Transform to domain:
-    let overlapping := overlapping.map λ p ↦ (p.fst + amd.fst - amcd.fst, p.snd + amd.fst - amcd.fst)
-    let overlapping := (amd.fst, amd.fst) :: (amd.snd, amd.snd) :: overlapping
-    let overlapping := overlapping.quicksortBy (·.fst < ·.fst)
-    let rs := overlapping.zip (overlapping.drop 1)
-    let rs : List (Nat × Nat):= rs.map λ x ↦ (x.fst.snd, x.snd.fst)
-    let rs := rs.filter λ l ↦ l.snd > l.fst
-    rs.map λ (x : Nat × Nat) ↦
-      let is : α := NatId.fromNat x.fst
-      let os : γ := NatId.fromNat $ amcd.fst + x.fst - amd.fst
-      let l : Nat := (x.snd - x.fst)
-      { inputStart := is, outputStart := os, length := l}
-  let affectedByBoth : List (Mapping α γ) := sorry
-  sorry
+private structure Mapping2 (α β : Type) where
+  start : α
+  offset : Int
+  deriving Repr
 
+private structure Mappings2 (α β : Type) where
+  mappings : List $ Mapping2 α β
+  deriving Repr
+
+private def Mappings2.fromMappings {α β : Type} [NatId α] [NatId β] [Ord α] (input : Mappings α β) : Mappings2 α β :=
+  let input := input.mappings.quicksortBy λ a b ↦ (Ord.compare a.inputStart b.inputStart == Ordering.lt)
+  let rec helper : List (Mapping α β) → List (Mapping2 α β) := λ
+    | [] => []
+    | a :: [] => [{ start:= a.inputStart, offset := (NatId.toNat a.outputStart) - (NatId.toNat a.inputStart) : Mapping2 α β},
+                 {start:= NatId.fromNat (NatId.toNat a.inputStart + a.length), offset := 0}]
+    | a :: b :: as => if (NatId.toNat b.inputStart) != (NatId.toNat a.inputStart + a.length) then
+                        { start:= a.inputStart, offset := (NatId.toNat a.outputStart) - (NatId.toNat a.inputStart) : Mapping2 α β}
+                        :: { start:= NatId.fromNat (NatId.toNat a.inputStart + a.length), offset := 0 : Mapping2 α β}
+                        :: helper (b :: as)
+                      else
+                        { start:= a.inputStart, offset := (NatId.toNat a.outputStart) - (NatId.toNat a.inputStart) : Mapping2 α β}
+                        :: helper (b :: as)
+  let result := match input with
+    | [] => []
+    | a :: _ =>  if NatId.toNat a.inputStart != 0 then
+                    { start:= NatId.fromNat 0, offset := 0 : Mapping2 α β} :: helper input
+                  else
+                    helper input
+  Mappings2.mk result
+
+private def Mappings2.apply (α β : Type) [NatId α] [NatId β] [Ord α] (mapping : Mappings2 α β) (value : α) : β :=
+  let rec findOffsetHelper := λ
+    | [] => 0
+    | a :: [] => a.offset
+    | a :: b :: as => if (Ord.compare value b.start == Ordering.lt) then a.offset else findOffsetHelper (b :: as)
+  let offset : Int := findOffsetHelper mapping.mappings
+  let result : Int := (NatId.toNat value + offset)
+  NatId.fromNat result.toNat
+
+private def Mappings2.combine {α β γ : Type} [NatId α] [NatId β] [NatId γ] (a : Mappings2 α β) (b : Mappings2 β γ) : Mappings2 α γ :=
+  -- at this point, let's just go integer
+  let a : List (Int × Int) := a.mappings.map λ m ↦ (NatId.toNat m.start, m.offset)
+  let b : List (Int × Int):= b.mappings.map λ m ↦ (NatId.toNat m.start, m.offset)
+  let rec findOffsetHelper := λ (list : List (Int × Int)) (value : Int) ↦ match list with
+    | [] => 0
+    | a :: [] => a.snd
+    | a :: b :: as => if (value < b.fst) then a.snd else findOffsetHelper (b :: as) value
+
+  let rec helper := λ (a : List (Int × Int)) ↦ match a with
+    | [] => b
+    | a :: [] =>
+      let bOffsetAtA := findOffsetHelper b (a.fst + a.snd)
+      let bRemainder := b.dropWhile (λ (bb : Int × Int) ↦ a.fst + a.snd > bb.fst)
+      match bRemainder with
+        | [] => [(a.fst, a.snd + bOffsetAtA)]
+        | b :: _ =>  if b.fst - a.snd == a.fst then
+                        bRemainder.map λ (b : Int × Int) ↦ (b.fst - a.snd, a.snd + b.snd)
+                      else
+                        (a.fst, a.snd + bOffsetAtA) :: bRemainder.map λ (b : Int × Int) ↦ (b.fst - a.snd, a.snd + b.snd)
+    | a :: aa :: as =>
+      let bOffsetAtA := findOffsetHelper b (a.fst + a.snd)
+      let relevantBs := b.filter (λ (bb : Int × Int) ↦ a.fst + a.snd ≤ bb.fst && aa.fst + a.snd > bb.fst)
+      match relevantBs with
+        | [] => (a.fst, a.snd + bOffsetAtA) :: (helper (aa :: as))
+        | b :: _ =>  if b.fst - a.snd == a.fst then
+                        (relevantBs.map λ (b : Int × Int) ↦ (b.fst - a.snd, a.snd + b.snd))
+                        ++ helper (aa :: as)
+                      else
+                        (a.fst, a.snd + bOffsetAtA) :: (relevantBs.map λ (b : Int × Int) ↦ (b.fst - a.snd, a.snd + b.snd))
+                        ++ helper (aa :: as)
+  let result := helper a
+  let result := result.map λ p ↦ { start := NatId.fromNat p.fst.toNat, offset := p.snd : Mapping2 α γ}
+  Mappings2.mk result
+
+def part1_2 (input : ((List Seed) × Almanach)) : Option Nat :=
+  let a := input.snd
+  let seedsToFertilizer := (Mappings2.fromMappings a.seedsToSoil).combine (Mappings2.fromMappings a.soilToFertilizer)
+  let seedsToWater := seedsToFertilizer.combine  (Mappings2.fromMappings a.fertilizerToWater)
+  let seedsToLight := seedsToWater.combine (Mappings2.fromMappings a.waterToLight)
+  let seedsToTemperature := seedsToLight.combine (Mappings2.fromMappings a.lightToTemperature)
+  let seedsToHumidity := seedsToTemperature.combine (Mappings2.fromMappings a.temperatureToHumidity)
+  let seedsToLocation := seedsToHumidity.combine (Mappings2.fromMappings a.humidityToLocation)
+  let seedToLocation  := seedsToLocation.apply
+  let locations := input.fst.map seedToLocation
+  NatId.toNat <$> locations.minimum?
 
 open DayPart
 instance : Parse ⟨5, by simp⟩ (ι := (List Seed) × Almanach) where
   parse := parse
 
 instance : Part ⟨5, _⟩ Parts.One (ι := (List Seed) × Almanach) (ρ := Nat) where
-  run := part1
+  run := part1_2
 
+-- 484023871
 
 private def TestInput := "seeds: 79 14 55 13
 
@@ -268,4 +317,6 @@ humidity-to-location map:
 "
 
 #eval parse TestInput
+#eval (parse TestInput) >>= λ a ↦ some $ Mappings2.fromMappings a.snd.soilToFertilizer
 #eval parse TestInput >>= part1
+#eval parse TestInput >>= part1_2
