@@ -184,10 +184,10 @@ def part1 (input : ((List Seed) × Almanach)) : Option Nat :=
 
 -- Part 2 seems unmanageable by brute force.
 -- So, let's rather combine the mappings in a smart way, such that we don't need to brute-force
--- anything
+-- anything (okay, nearly)
 
 private structure Mapping2 (α β : Type) where
-  start : α
+  start : α --okay, next time I do this, I'll encode end and offset, not start and offset...
   offset : Int
   deriving Repr
 
@@ -197,16 +197,16 @@ private structure Mappings2 (α β : Type) where
 
 private def Mappings2.fromMappings {α β : Type} [NatId α] [NatId β] [Ord α] (input : Mappings α β) : Mappings2 α β :=
   let input := input.mappings.quicksortBy λ a b ↦ (Ord.compare a.inputStart b.inputStart == Ordering.lt)
-  let rec helper : List (Mapping α β) → List (Mapping2 α β) := λ
+  let rec helper := λ
     | [] => []
-    | a :: [] => [{ start:= a.inputStart, offset := (NatId.toNat a.outputStart) - (NatId.toNat a.inputStart) : Mapping2 α β},
+    | a :: [] => [{ start:= a.inputStart, offset := (NatId.toNat a.outputStart) - (NatId.toNat a.inputStart)},
                  {start:= NatId.fromNat (NatId.toNat a.inputStart + a.length), offset := 0}]
     | a :: b :: as => if (NatId.toNat b.inputStart) != (NatId.toNat a.inputStart + a.length) then
-                        { start:= a.inputStart, offset := (NatId.toNat a.outputStart) - (NatId.toNat a.inputStart) : Mapping2 α β}
-                        :: { start:= NatId.fromNat (NatId.toNat a.inputStart + a.length), offset := 0 : Mapping2 α β}
+                        { start:= a.inputStart, offset := (NatId.toNat a.outputStart) - (NatId.toNat a.inputStart)}
+                        :: { start:= NatId.fromNat (NatId.toNat a.inputStart + a.length), offset := 0}
                         :: helper (b :: as)
                       else
-                        { start:= a.inputStart, offset := (NatId.toNat a.outputStart) - (NatId.toNat a.inputStart) : Mapping2 α β}
+                        { start:= a.inputStart, offset := (NatId.toNat a.outputStart) - (NatId.toNat a.inputStart)}
                         :: helper (b :: as)
   let result := match input with
     | [] => []
@@ -234,7 +234,7 @@ private def Mappings2.combine {α β γ : Type} [NatId α] [NatId β] [NatId γ]
     | a :: [] => a.snd
     | a :: b :: as => if (value < b.fst) then a.snd else findOffsetHelper (b :: as) value
 
-  let rec helper := λ (a : List (Int × Int)) ↦ match a with
+  let rec helper := λ
     | [] => b
     | a :: [] =>
       let bOffsetAtA := findOffsetHelper b (a.fst + a.snd)
@@ -257,10 +257,10 @@ private def Mappings2.combine {α β γ : Type} [NatId α] [NatId β] [NatId γ]
                         (a.fst, a.snd + bOffsetAtA) :: (relevantBs.map λ (b : Int × Int) ↦ (b.fst - a.snd, a.snd + b.snd))
                         ++ helper (aa :: as)
   let result := helper a
-  let result := result.map λ p ↦ { start := NatId.fromNat p.fst.toNat, offset := p.snd : Mapping2 α γ}
-  Mappings2.mk result
+  Mappings2.mk $ result.map λ p ↦ { start := NatId.fromNat p.fst.toNat, offset := p.snd : Mapping2 α γ}
 
-def part1_2 (input : ((List Seed) × Almanach)) : Option Nat :=
+-- Unused, left here for reference
+private def part1_2 (input : ((List Seed) × Almanach)) : Option Nat :=
   let a := input.snd
   let seedsToFertilizer := (Mappings2.fromMappings a.seedsToSoil).combine (Mappings2.fromMappings a.soilToFertilizer)
   let seedsToWater := seedsToFertilizer.combine  (Mappings2.fromMappings a.fertilizerToWater)
@@ -272,14 +272,60 @@ def part1_2 (input : ((List Seed) × Almanach)) : Option Nat :=
   let locations := input.fst.map seedToLocation
   NatId.toNat <$> locations.minimum?
 
+private structure SeedRange where
+  start : Seed
+  ending : Seed
+  deriving Repr
+
+private def SeedRange.fromList (input : List Seed) : List SeedRange :=
+  let rec helper : List Seed → List SeedRange := λ
+    | [] => []
+    | _ :: [] => []
+    | a :: b :: as => { start := a, ending := Seed.mk $ b.id + a.id} :: SeedRange.fromList as
+  (helper input).quicksortBy λ a b ↦ a.start.id < b.start.id
+
+private def SeedRange.findSmallestSeedAbove (seedRanges : List SeedRange) (value : Seed) : Option Seed :=
+  -- two options: If the value is inside a seedRange, the value itself is the result
+  --              If not, the start of the first seedRange above the value is the result
+  let rangeContains := λ r ↦ (Ord.compare r.start value != Ordering.gt) && (Ord.compare r.ending value == Ordering.gt)
+  let rec helper := λ
+  | [] => none
+  | r :: rs =>  if rangeContains r then
+                  some value
+                else
+                  if Ord.compare r.start value == Ordering.gt then
+                    r.start
+                  else
+                    helper rs
+  helper seedRanges
+
+def part2 (input : ((List Seed) × Almanach)) : Option Nat :=
+  let a := input.snd
+  let seedToLocation := Mappings2.fromMappings a.seedsToSoil
+    |> flip Mappings2.combine (Mappings2.fromMappings a.soilToFertilizer)
+    |> flip Mappings2.combine (Mappings2.fromMappings a.fertilizerToWater)
+    |> flip Mappings2.combine (Mappings2.fromMappings a.waterToLight)
+    |> flip Mappings2.combine (Mappings2.fromMappings a.lightToTemperature)
+    |> flip Mappings2.combine (Mappings2.fromMappings a.temperatureToHumidity)
+    |> flip Mappings2.combine (Mappings2.fromMappings a.humidityToLocation)
+
+  let seedRanges := SeedRange.fromList input.fst
+
+  let potentialSeeds := seedToLocation.mappings.filterMap λ m ↦
+    (SeedRange.findSmallestSeedAbove seedRanges m.start) -- could filter by range end, but who cares?
+  let locations := potentialSeeds.map seedToLocation.apply
+  NatId.toNat <$> locations.minimum?
+
 open DayPart
 instance : Parse ⟨5, by simp⟩ (ι := (List Seed) × Almanach) where
   parse := parse
 
 instance : Part ⟨5, _⟩ Parts.One (ι := (List Seed) × Almanach) (ρ := Nat) where
-  run := part1_2
+  run := part1
 
--- 484023871
+instance : Part ⟨5, _⟩ Parts.Two (ι := (List Seed) × Almanach) (ρ := Nat) where
+  run := part2
+
 
 private def TestInput := "seeds: 79 14 55 13
 
@@ -316,7 +362,9 @@ humidity-to-location map:
 56 93 4
 "
 
-#eval parse TestInput
-#eval (parse TestInput) >>= λ a ↦ some $ Mappings2.fromMappings a.snd.soilToFertilizer
-#eval parse TestInput >>= part1
-#eval parse TestInput >>= part1_2
+-- #eval parse TestInput
+-- #eval parse TestInput >>= λ a ↦ some $ SeedRange.fromList a.fst
+-- #eval (parse TestInput) >>= λ a ↦ some $ Mappings2.fromMappings a.snd.soilToFertilizer
+-- #eval parse TestInput >>= part1
+-- #eval parse TestInput >>= part1_2
+-- #eval parse TestInput >>= part2
