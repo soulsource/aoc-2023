@@ -15,6 +15,8 @@ lean_lib «Day4» where
 
 lean_lib «Day5» where
 
+lean_lib «Day6» where
+
 lean_lib «Common» where
 
 @[default_target]

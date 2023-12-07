@@ -107,21 +107,22 @@ structure Almanach where
   humidityToLocation : Mappings Humidity Location
   deriving Repr
 
-private def parseSeeds (input : String) : Option (List Seed) :=
+private def parseSeeds (input : String) : Except String (List Seed) :=
   if input.startsWith "seeds: " then
     let input := input.drop 7
     let input := String.trim <$> input.split Char.isWhitespace
     let numbers := input.mapM String.toNat?
+    let numbers := if let some numbers := numbers then pure numbers else throw s!"Failed to parse a seed number in {input}"
     List.map NatId.fromNat <$> numbers
   else
-    none
+    throw s!"Seeds line does not start with \"seeds: \": {input}"
 
-private def parseMapping {α β : Type} [NatId α] [NatId β] (input : String) : Option $ Mapping α β := do
+private def parseMapping {α β : Type} [NatId α] [NatId β] (input : String) : Except String $ Mapping α β := do
   let input := String.trim <$> input.split Char.isWhitespace
-  let nums ← input.mapM String.toNat?
+  let nums ← input.mapM $ (λ o ↦ if let some o := o then pure o else throw s!"Failed to parse mapping {input}, expected number") ∘ String.toNat?
   match nums with
-  | [a,b,c] => some $ {inputStart := NatId.fromNat b, outputStart := NatId.fromNat a, length := c}
-  | _ => none
+  | [a,b,c] => pure $ {inputStart := NatId.fromNat b, outputStart := NatId.fromNat a, length := c}
+  | _ => throw "Failed to parse mapping {input}, expected 3 numbers."
 
 private def Mapping.overlap {α β : Type} [NatId α] [NatId β] (a : Mapping α β) (b : Mapping α β) : Bool :=
   let aStart := NatId.toNat $ a.inputStart
@@ -129,23 +130,23 @@ private def Mapping.overlap {α β : Type} [NatId α] [NatId β] (a : Mapping α
   let bStart := NatId.toNat $ b.inputStart
   let bEnd := bStart + b.length
   (bStart ≥ aStart && bStart < aEnd)
-   || (bEnd ≥ aStart && bEnd < aEnd)
+   || (bEnd > aStart && bEnd ≤ aEnd)
    || (aStart ≥ bStart && aStart < bEnd)
-   || (aEnd ≥ bStart && aEnd < bEnd)
+   || (aEnd > bStart && aEnd ≤ bEnd)
 
-private def parseMappings (α β : Type) [NatId α] [NatId β] (input : String) (header : String) : Option $ Mappings α β :=
+private def parseMappings (α β : Type) [NatId α] [NatId β] (input : String) (header : String) : Except String $ Mappings α β :=
   if input.startsWith header then
     let lines := String.trim <$> input.splitOn "\n" |> List.drop 1 |> List.filter (not ∘ String.isEmpty)
-    let mappings := lines.mapM parseMapping
+    let mappings : Except String (List $ Mapping α β) := lines.mapM parseMapping
     let rec overlapHelper := λ (a : List $ Mapping α β) ↦ match a with
       | [] => false
       | a :: as => as.any (λ b ↦ a.overlap b) || overlapHelper as
-    let mappings := mappings.filter overlapHelper --make sure no ranges overlap. That would be faulty
+    let mappings := mappings.bind λ m ↦ if overlapHelper m then throw s!"There is an overlap in mapping {input}" else pure m
     Mappings.mk <$> mappings
   else
-   none
+   throw s!"Input line does not start with the required header: {header} {input}"
 
-def parse (input : String) : Option ((List Seed) × Almanach) := do
+def parse (input : String) : Except String ((List Seed) × Almanach) := do
   let blocks := input.splitOn "\n\n" |> List.filter (not ∘ String.isEmpty)
   let blocks := String.trim <$> blocks
   if let [seeds, seedToSoil, soilToFertilizer, fertilizerToWater, waterToLight, lightToTemperature, temperatureToHumidity, humidityToLocation] := blocks then
@@ -157,7 +158,7 @@ def parse (input : String) : Option ((List Seed) × Almanach) := do
     let lightToTemperature ← parseMappings Light Temperature lightToTemperature "light-to-temperature map:"
     let temperatureToHumidity ← parseMappings Temperature Humidity temperatureToHumidity "temperature-to-humidity map:"
     let humidityToLocation ← parseMappings Humidity Location humidityToLocation "humidity-to-location map:"
-    (seeds, {
+    pure (seeds, {
       seedsToSoil := seedToSoil
       soilToFertilizer := soilToFertilizer
       fertilizerToWater := fertilizerToWater
@@ -167,7 +168,7 @@ def parse (input : String) : Option ((List Seed) × Almanach) := do
       humidityToLocation := humidityToLocation
     : Almanach})
   else
-    none
+    throw "Failed to parse input, it doe not have the required number of blocks"
 
 def part1 (input : ((List Seed) × Almanach)) : Option Nat :=
   let a := input.snd

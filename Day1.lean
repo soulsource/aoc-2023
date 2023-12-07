@@ -2,8 +2,8 @@ import Common
 
 namespace Day1
 
-def parse (input : String) : Option $ List String :=
-  some $ input.split Char.isWhitespace |> List.filter (not ∘ String.isEmpty)
+def parse (input : String) : List String :=
+  input.split Char.isWhitespace |> List.filter (not ∘ String.isEmpty)
 
 -- Both parts could still be improved by doing two searches, one from the left, one from the right
 
@@ -62,7 +62,7 @@ def part2 (instructions : List String) : Option Nat :=
 
 open DayPart
 instance : Parse ⟨1, by simp⟩ (ι := List String) where
-  parse := parse
+  parse := pure ∘ parse
 
 instance : Part ⟨1, _⟩ Parts.One (ι := List String) (ρ := Nat) where
   run := part1

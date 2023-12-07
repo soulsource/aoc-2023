@@ -20,7 +20,7 @@ abbrev Deck := List Card
 private def Deck.score : Deck → Nat :=
   List.foldl (· + ·.score) 0
 
-def parse (input : String) : Option Deck := do
+def parse (input : String) : Except String Deck := do
   let mut cards : Deck := []
   for line in input.splitOn "\n" do
     if line.isEmpty then
@@ -30,9 +30,9 @@ def parse (input : String) : Option Deck := do
       let f := String.trim $ cs[0]'(by simp[p])
       let g := String.trim $ cs[1]'(by simp[p])
       if not $ f.startsWith "Card " then
-        failure
+        throw "All cards need to start with the term \"Card \""
       let f := f.drop 5 |> String.trim
-      let f ← f.toNat?
+      let f ← if let some f := f.toNat? then pure f else throw "Card numbers need to be numbers."
       let g := g.splitOn "|"
       if q : g.length = 2 then
         let winners := String.trim $ g[0]'(by simp[q])
@@ -41,13 +41,13 @@ def parse (input : String) : Option Deck := do
           s.split (·.isWhitespace)
           |> List.filter (not ∘ String.isEmpty)
           |> List.mapM String.toNat?
-        let winners ← toNumbers winners
-        let draws ← toNumbers draws
+        let winners ← if let some winners := toNumbers winners then pure winners else throw "Failed to parse winning numbers."
+        let draws ← if let some draws := toNumbers draws then pure draws else throw "Failed to parse draws"
         cards := {id := f, winningNumbers := winners, haveNumbers := draws : Card} :: cards
       else
-        failure
+        throw "Failed to split input line between winners and draws"
     else
-      failure
+      throw "Failed to split between card number and winners/draws"
   return cards -- cards is **reversed**, that's intentional. It doesn't affect part 1, but makes part 2 easier.
 
 def part2 (input : Deck) : Nat :=

@@ -78,7 +78,7 @@ def part2 (games : List Game) : Nat :=
 
 open DayPart
 instance : Parse ⟨2, by simp⟩ (ι := List Game) where
-  parse := parse
+  parse := (λ o ↦ match o with | some a => pure a | none => throw "Failed to parse input") ∘ parse
 
 instance : Part ⟨2,_⟩ Parts.One (ι := List Game) (ρ := Nat) where
   run := some ∘ part1

@@ -78,10 +78,10 @@ private def extractPartNumbers (input : List (Coordinate × Char)) : List PartNu
       acc :: helper as none
   helper input none
 
-def parse (schematic : String) : Option Schematic := do
+def parse (schematic : String) : Except String Schematic := do
   -- I think this one is easier if we don't split the input in lines. Because:
   let charsWithCoordinates ← match schematic.toList with
-    | [] => none
+    | [] => throw "Could not pare input: Empty"
     | c :: cs => pure $ cs.scan (λ s c ↦ (uncurry Coordinate.nextByChar s, c)) (Coordinate.default, c)
   -- Whitespaces are **intentionally** left in. This makes extracting the numbers easier.
   pure $ {

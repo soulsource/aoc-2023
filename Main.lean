@@ -9,10 +9,7 @@ open DayPart
 
 def try_run_day_part (day : Days) (part : Parts) (data : String) : IO String :=
   let impl : {ι : Type} →  (d : Days) → (p : Parts) → String → [Parse d (ι := ι)] → [Part d p (ι := ι)] → IO String := λ day part data ↦ do
-    let instructions ← if let some instructions := Parse.parse day data then
-      pure instructions
-    else
-      throw $ IO.userError "Failed to parse input file."
+    let instructions ← IO.ofExcept $ Parse.parse day data
     if let some result := (Part.run day part instructions).map ToString.toString then
       pure result
     else
