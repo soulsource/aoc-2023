@@ -2,10 +2,8 @@ import Lake
 open Lake DSL
 
 package «aoc-2023» where
-  -- add package configuration options here
 
 lean_lib «Day1» where
-  -- add library configuration options here
 
 lean_lib «Day2» where
 
@@ -18,6 +16,8 @@ lean_lib «Day5» where
 lean_lib «Day6» where
 
 lean_lib «Day7» where
+
+lean_lib «Day8» where
 
 lean_lib «Common» where
 
