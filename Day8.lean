@@ -115,6 +115,54 @@ def part1 (input : List Instruction × List Waypoint) : Option Nat :=
   part1_impl waypoints instructions possibleStarts 0 start
 
 --------------------------------------------------------------------------------------------------------
+-- okay, part 2 is nasty.
+-- what do we know?
+-- o) All paths we follow simultaneously have the same path length, as they have common instructions.
+--   x) This means that once we walk in circles on all of them, we are lost.
+--      -> That's the way to convince the compiler this program terminates.
+-- o) We could use the cycle detection to rule out short, cycled paths.
+--   x) Once a path is in a cycle, the targets repeat at cycle-lenght interval.
+--   x) I doubt that this would be much faster than brute-force though.
+
+-- let's try brute force first. Maybe it's fast enough?
+
+private def parallelPass (waypoints : Lean.HashMap WaypointId ConnectedWaypoints) (alreadyDoneSteps : Nat) (currentPositions : List WaypointId) (instructions : List Instruction) : Except (Option (Nat × (List WaypointId))) Nat := do
+  if currentPositions.all λw ↦ w.endsWith "Z" then
+    return alreadyDoneSteps
+  match instructions with
+  | [] => throw $ some (alreadyDoneSteps, currentPositions)
+  | a :: as =>
+    let currentWaypoint := currentPositions.mapM waypoints.find?
+    match currentWaypoint with
+    | none => throw none -- should not happen
+    | some currentWaypoints =>
+      let nextWaypoints := currentWaypoints.map $ flip ConnectedWaypoints.get a
+      parallelPass waypoints (alreadyDoneSteps + 1) nextWaypoints as
+
+
+private def totalRemainingStarts (s : List (List WaypointId)) : Nat :=
+  s.foldl (·+·.length) 0
+
+private def part2_impl (waypoints : Lean.HashMap WaypointId ConnectedWaypoints) (instructions : List Instruction) (alreadyDoneSteps : Nat) (possibleStarts : List (List WaypointId)) (currentPositions : List WaypointId) : Option Nat :=
+  let remainingStarts := (possibleStarts.zip currentPositions).map λs ↦ s.fst.filter λt ↦ t != s.snd
+  -- I _really_ don't want to prove stuff by hand... Luckily this works.
+  if totalRemainingStarts remainingStarts < totalRemainingStarts possibleStarts then
+    let passResult := parallelPass waypoints alreadyDoneSteps currentPositions instructions
+    match passResult with
+    | Except.ok n => some n
+    | Except.error none => none -- dead end on map. Should not be possible.
+    | Except.error $ some n => part2_impl waypoints instructions n.fst remainingStarts n.snd
+  else
+    none -- walking in circles
+  termination_by part2_impl a b c d e => totalRemainingStarts d
+
+open Lean in
+def part2 (input : List Instruction × List Waypoint) : Option Nat :=
+  let possibleStarts := input.snd.map Waypoint.id
+  let waypoints : HashMap WaypointId ConnectedWaypoints := HashMap.ofList $ input.snd.map λw ↦ (w.id, {left := w.left, right := w.right : ConnectedWaypoints})
+  let instructions := input.fst
+  let positions : List WaypointId := (input.snd.filter λ(w : Waypoint) ↦ w.id.endsWith "A").map Waypoint.id
+  part2_impl waypoints instructions 0 (positions.map λ_ ↦ possibleStarts) positions
 
 --------------------------------------------------------------------------------------------------------
 
@@ -125,25 +173,7 @@ instance : Parse ⟨8, by simp⟩ (ι := List Instruction × List Waypoint) wher
 instance : Part ⟨8,_⟩ Parts.One (ι := List Instruction × List Waypoint) (ρ := Nat) where
   run := part1
 
+instance : Part ⟨8,_⟩ Parts.Two (ι := List Instruction × List Waypoint) (ρ := Nat) where
+  run := part2
+
 --------------------------------------------------------------------------------------------------------
-
-private def testInput := "LLR
-
-AAA = (BBB, BBB)
-BBB = (AAA, ZZZ)
-ZZZ = (ZZZ, ZZZ)
-"
-
-private def testInput2 := "RL
-
-AAA = (BBB, CCC)
-BBB = (DDD, EEE)
-CCC = (ZZZ, GGG)
-DDD = (DDD, DDD)
-EEE = (EEE, EEE)
-GGG = (GGG, GGG)
-ZZZ = (ZZZ, ZZZ)
-"
-
-#eval parse testInput >>= (Option.toExcept "Blah" ∘ part1)
-#eval parse testInput2 >>= (Option.toExcept "Blah" ∘ part1)
