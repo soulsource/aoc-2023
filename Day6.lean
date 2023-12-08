@@ -2,6 +2,7 @@ import Common.Option
 import Common.Helpers
 import Common.DayPart
 
+namespace Day6
 structure Race where
   timeLimit : Nat
   recordDistance : Nat

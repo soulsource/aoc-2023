@@ -48,3 +48,17 @@ def dedup {α : Type} [BEq α] (input : List α) : List α :=
   match input with
   | [] => []
   | a :: as => a :: helper as a
+
+def compare {α : Type} [Ord α] (a b : List α) := match a, b with
+  | _ :: _, [] => Ordering.gt
+  | [], _ :: _ => Ordering.lt
+  | [], [] => Ordering.eq
+  | a :: as, b :: bs =>
+    let ab := Ord.compare a b
+    if ab != Ordering.eq then
+      ab
+    else
+      compare as bs
+
+instance {α : Type} [Ord α] : Ord (List α) where
+  compare := compare
