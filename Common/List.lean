@@ -36,19 +36,6 @@ def scan {α σ : Type} (step : σ → α → σ) (init : σ): List α → List 
   let next := step init a
   init :: scan step next as
 
-/-- Removes repeated entries. [1,2,2,1] becomes [1,2,1]-/
-def dedup {α : Type} [BEq α] (input : List α) : List α :=
-  let rec helper : List α → α → List α := λ
-  | [], _ => []
-  | a :: as, b =>
-    if a == b then
-      helper as a
-    else
-      a :: helper as a
-  match input with
-  | [] => []
-  | a :: as => a :: helper as a
-
 def compare {α : Type} [Ord α] (a b : List α) := match a, b with
   | _ :: _, [] => Ordering.gt
   | [], _ :: _ => Ordering.lt

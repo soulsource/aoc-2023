@@ -106,7 +106,7 @@ def part2 (schematic : Schematic) : Nat :=
     Lean.HashMap.ofList $ schematic.numbers.bind $ λ pn ↦ pn.positions.map (·, pn)
   let gearSymbols := schematic.parts.filter (Part.symbol · == '*')
   -- but the symbols aren't enough, they need to be adjacent to **exactly** 2 numbers
-  let numbersNextGearSymbols := List.dedup <$> gearSymbols.map λgs ↦
+  let numbersNextGearSymbols := List.eraseReps <$> gearSymbols.map λgs ↦
     gs.position.adjacents.filterMap numberCoordinates.find?
   let gearSymbols := numbersNextGearSymbols.filter (List.length · == 2)
   let gearRatios := gearSymbols.map $ List.foldl (· * PartNumber.value ·) 1

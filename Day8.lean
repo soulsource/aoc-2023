@@ -7,7 +7,11 @@ namespace Day8
 inductive Instruction
   | left
   | right
-  deriving Repr
+
+instance : ToString Instruction where
+  toString a := match a with
+  | Instruction.left => "Left"
+  | Instruction.right => "Right"
 
 abbrev WaypointId := String
 
@@ -124,7 +128,7 @@ def part1 (input : List Instruction × List Waypoint) : Option Nat :=
 --   x) Once a path is in a cycle, the targets repeat at cycle-lenght interval.
 --   x) I doubt that this would be much faster than brute-force though.
 
--- let's try brute force first. Maybe it's fast enough?
+-- let's try brute force first.
 
 private def parallelPass (waypoints : Lean.HashMap WaypointId ConnectedWaypoints) (alreadyDoneSteps : Nat) (currentPositions : List WaypointId) (instructions : List Instruction) : Except (Option (Nat × (List WaypointId))) Nat := do
   if currentPositions.all λw ↦ w.endsWith "Z" then
@@ -156,13 +160,149 @@ private def part2_impl (waypoints : Lean.HashMap WaypointId ConnectedWaypoints) 
     none -- walking in circles
   termination_by part2_impl a b c d e => totalRemainingStarts d
 
+-- Okay, tried Brute Force, it did NOT work. Or rather, it might work, but I won't be able to prove
+-- termination for it. Not that it wouldn't be possible to prove, just I won't manage to.
+-- The problem is that the termination condition in part2_impl is too soon.
+-- You can actually see this in the example (for which part2_impl works, but by chance).
+-- While the goals in each part repeat, they repeat at different rates.
+-- Soo, we would need to continue even after each part has started walking in circles.
+-- However, just doing that runs for a very long time without finding a result.
+-- Sooo, let's be smarter.
+--
+-- Every path consist of 2 segments. The part that leads up to a cycle, and the cycle.
+-- Both parts can contain goals, but once the cycle starts, the goals repeat with cycle-length.
+-- A cycle is at least one pass, but can (and does...) consist of multiple passes too.
+
+-- We can use part2_impl still - to verify that we do not reach the goals before all our paths start
+-- cycling. That allows us to only care about cycling paths in the second part of the solution, which
+-- we only reach if part2_impl does not yield a result (we know it doesn't, but that would be cheating).
+
+-- Soo, how can the second part look like?
+
+-- For simplicity let's not do this in parallel. Rather, let's find the goals for each start individually
+-- So, let's just consider a single path (like the one from part1)
+-- We need to write down the number of steps at which we reach a goal.
+-- Whenever we remove a remaining start from the possible starts list, we need to note it down, and
+--   how many steps it took us to get there.
+-- Once we detect a circle, we can look up
+--   how many steps we took in total till we startec cycling
+--   and how many steps it took us to reach the cycle start for the first time
+--   that's the period of each goal in the cycle.
+-- For each goal that was found between cycle-start and cycle-end, we can write down an equation:
+-- x = steps_from_start + cycle_length * n
+-- n is a Natural number here, not an integer. x is the number of steps at which we pass this goal
+
+-- Once we have that information for all goals of all starts, we can combine it:
+-- That's a set of Diophantine equations.
+--
+-- Or, rather, several sets of Diophantine equations...
+-- For each combination of goals that are reached in the cycles of the participating paths, we need to
+-- solve the following system:
+--
+-- We can write each goal for each run in the form x = g0 + n * cg
+-- Where x is the solution we are looking for, g0 is the number of steps from the start until
+-- we hit the goal for the first time **in the cycle**, and cg is the cycle length
+--
+-- Once we have those equations, we can combine them pairwise: https://de.wikipedia.org/wiki/Lineare_diophantische_Gleichung
+-- This allows us to reduce all paths to a single one, which has multiple equations that
+-- describe when a goal is reached.
+-- For each of those equations we need to find the first solution that is larger than
+-- the point where all paths started to cycle. The smallest of those is the result.
+
+-- a recurring goal, that starts at "start" and afterwards appears at every "interval".
+private structure CyclingGoal where
+  start : Nat
+  interval : Nat
+  deriving BEq
+
+instance : ToString CyclingGoal where
+  toString g := s!"`g = {g.start} + n * {g.interval}`"
+
+private def CyclingGoal.nTh (goal : CyclingGoal) (n : Nat) : Nat :=
+  goal.start + n * goal.interval
+
+-- Combine two cycling goals into a new cycling goal. This might fail, if they never meet.
+-- This can for instance happen if they have the same frequency, but different starts.
+private def CyclingGoal.combine (a b : CyclingGoal) : Option CyclingGoal :=
+  -- a.start + n * a.interval = b.start + m * b.interval
+  -- n * a.interval - m * b.interval = b.start - a.start
+  -- we want to do as much as possible in Nat, such that we can easily reason about which numbers are
+  -- positive. Soo
+  let (a, b) := if a.start > b.start then (b,a) else (a,b)
+  let (g, u, _) := Euclid.xgcd a.interval b.interval
+  -- there is no solution if b.start - a.start is not divisible by g
+  let c := (b.start - a.start)
+  let s := c / g
+  if s * g != c then
+    none
+  else
+    let deltaN := b.interval / g
+    let n0 := s * u -- we can use u directly - v would need its sign swapped, but we don't use v.
+    -- a.start + (n0 + t * deltaN)*a.interval
+    -- a.start + n0*a.interval + t * deltaN * a.interval
+    -- we need the first value of t that yields a result >= max(a.start, b.start)
+    -- because that's where our cycles start.
+    let x := ((max a.start b.start : Int) - a.interval * n0 - a.start)
+    let interval := a.interval * deltaN
+    let t0 := x / interval
+    let t0 := if t0 * interval == x || x < 0 then t0 else t0 + 1 -- int division rounds towards zero, so for x < 0 it's already ceil.
+    let start :=  a.start + n0 * a.interval + t0 * deltaN * a.interval
+    assert! (start ≥ max a.start b.start)
+    let start := start.toNat
+    some {start, interval }
+
+private def findCyclingGoalsInPathPass (waypoints : Lean.HashMap WaypointId ConnectedWaypoints) (alreadyDoneSteps : Nat) (currentPosition : WaypointId) (instructions : List Instruction) (visitedGoals : List Nat) : Option (Nat × WaypointId × (List Nat)) := do
+  let visitedGoals := if currentPosition.endsWith "Z" then
+    alreadyDoneSteps :: visitedGoals
+  else
+    visitedGoals
+  match instructions with
+  | [] => some (alreadyDoneSteps, currentPosition, visitedGoals)
+  | a :: as =>
+    let currentWaypoint := waypoints.find? currentPosition
+    match currentWaypoint with
+    | none => none -- should not happen
+    | some currentWaypoint => findCyclingGoalsInPathPass waypoints (alreadyDoneSteps + 1) (currentWaypoint.get a) as visitedGoals
+
+private def findCyclingGoalsInPath_impl (waypoints : Lean.HashMap WaypointId ConnectedWaypoints) (instructions : List Instruction) (possibleStarts : List WaypointId) (visitedGoals : List Nat) (visitedStarts : List (WaypointId × Nat)) (currentPosition : WaypointId) (currentSteps : Nat) : List CyclingGoal :=
+  let remainingStarts := possibleStarts.filter λs ↦ s != currentPosition
+  if remainingStarts.length < possibleStarts.length then -- written this way to make termination_by easy
+    let visitedStarts := (currentPosition, currentSteps) :: visitedStarts
+    let passResult := findCyclingGoalsInPathPass waypoints currentSteps currentPosition instructions visitedGoals
+    match passResult with
+      | none =>  [] -- should not happen. Only possible if there's a dead end
+      | some (currentSteps, currentPosition, visitedGoals) => findCyclingGoalsInPath_impl waypoints instructions remainingStarts visitedGoals visitedStarts currentPosition currentSteps
+  else
+    let beenHereWhen := visitedStarts.find? λs ↦ s.fst == currentPosition
+    let beenHereWhen := beenHereWhen.get!.snd --cannot possibly fail
+    let cycleLength := currentSteps - beenHereWhen
+    visitedGoals.filterMap λ n ↦ if n ≥ beenHereWhen then
+      some {start := n, interval := cycleLength : CyclingGoal}
+    else
+      none -- goal was reached before we started to walk in cycles, ignore.
+  termination_by findCyclingGoalsInPath_impl a b c d e f g => c.length
+
+private def findCyclingGoalsInPath (waypoints : Lean.HashMap WaypointId ConnectedWaypoints) (instructions : List Instruction) (possibleStarts : List WaypointId) (startPosition : WaypointId) : List CyclingGoal :=
+  findCyclingGoalsInPath_impl waypoints instructions possibleStarts [] [] startPosition 0
+
+-- returns the number of steps needed until the first _commmon_ goal that cycles is found.
+private def findFirstCommonCyclingGoal (waypoints : Lean.HashMap WaypointId ConnectedWaypoints) (instructions : List Instruction) (possibleStarts : List WaypointId) (startPositions : List WaypointId) : Option Nat :=
+  let cyclingGoals := startPositions.map $ findCyclingGoalsInPath waypoints instructions possibleStarts
+  let combinedGoals : List CyclingGoal := match cyclingGoals with
+    | [] => []
+    | g :: gs => flip gs.foldl g λc n ↦ c.bind λ cc ↦ n.filterMap λ nn ↦ nn.combine cc
+  let cyclingGoalStarts := combinedGoals.map CyclingGoal.start
+  cyclingGoalStarts.minimum?
+
 open Lean in
 def part2 (input : List Instruction × List Waypoint) : Option Nat :=
   let possibleStarts := input.snd.map Waypoint.id
   let waypoints : HashMap WaypointId ConnectedWaypoints := HashMap.ofList $ input.snd.map λw ↦ (w.id, {left := w.left, right := w.right : ConnectedWaypoints})
   let instructions := input.fst
   let positions : List WaypointId := (input.snd.filter λ(w : Waypoint) ↦ w.id.endsWith "A").map Waypoint.id
-  part2_impl waypoints instructions 0 (positions.map λ_ ↦ possibleStarts) positions
+  -- part2_impl waypoints instructions 0 (positions.map λ_ ↦ possibleStarts) positions
+  -- <|> -- if part2_impl fails (it does), we need to dig deeper.
+  findFirstCommonCyclingGoal waypoints instructions possibleStarts positions
 
 --------------------------------------------------------------------------------------------------------
 
