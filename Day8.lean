@@ -300,8 +300,8 @@ def part2 (input : List Instruction × List Waypoint) : Option Nat :=
   let waypoints : HashMap WaypointId ConnectedWaypoints := HashMap.ofList $ input.snd.map λw ↦ (w.id, {left := w.left, right := w.right : ConnectedWaypoints})
   let instructions := input.fst
   let positions : List WaypointId := (input.snd.filter λ(w : Waypoint) ↦ w.id.endsWith "A").map Waypoint.id
-  -- part2_impl waypoints instructions 0 (positions.map λ_ ↦ possibleStarts) positions
-  -- <|> -- if part2_impl fails (it does), we need to dig deeper.
+  part2_impl waypoints instructions 0 (positions.map λ_ ↦ possibleStarts) positions
+  <|> -- if part2_impl fails (it does), we need to dig deeper.
   findFirstCommonCyclingGoal waypoints instructions possibleStarts positions
 
 --------------------------------------------------------------------------------------------------------
