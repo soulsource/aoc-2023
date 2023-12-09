@@ -30,7 +30,7 @@ private def extrapolate : List Int → Int
   if a == 0 && as.all (· == 0) then
     0
   else
-    have : List.length (Day9.differences (a :: as)) < Nat.succ (List.length as) := by
+    have : (differences (a :: as)).length < as.length + 1 := by
       simp_arith[differences]
       induction (as) <;> simp_arith[differences]
       case cons b bs hb => rw[←differences_length_independent_arg]
