@@ -4,22 +4,15 @@ open Lake DSL
 package «aoc-2023» where
 
 lean_lib «Day1» where
-
 lean_lib «Day2» where
-
 lean_lib «Day3» where
-
 lean_lib «Day4» where
-
 lean_lib «Day5» where
-
 lean_lib «Day6» where
-
 lean_lib «Day7» where
-
 lean_lib «Day8» where
-
 lean_lib «Day9» where
+lean_lib «Day10» where
 
 lean_lib «Common» where
 
