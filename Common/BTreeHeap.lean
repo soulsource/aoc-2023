@@ -1,9 +1,9 @@
 namespace BTreeHeap
 
 /--A heap, represented as a binary indexed tree. The heap predicate is a type parameter, the index is the element count.-/
-inductive BTreeHeap (α : Type u) (lt : α → α → Bool ): Nat → Type u
+inductive BTreeHeap (α : Type u) (lt : α → α → Bool): Nat → Type u
   | leaf : BTreeHeap α lt 0
-  | branch : (val : α) → (left : BTreeHeap α lt n) → (right : BTreeHeap α lt m) → m ≤ n → BTreeHeap α lt (n+m+1)
+  | branch : (val : α) → (left : BTreeHeap α lt n) → (right : BTreeHeap α lt m) → m ≤ n →  BTreeHeap α lt (n+m+1)
 
 /--Please do not use this for anything meaningful. It's a debug function, with horrible performance.-/
 instance {α : Type u} {lt : α → α → Bool} [ToString α] : ToString (BTreeHeap α lt n) where
@@ -39,9 +39,6 @@ def BTreeHeap.length : BTreeHeap α lt n → Nat := λ_ ↦ n
 /--Creates an empty BTreeHeap. Needs the heap predicate as parameter.-/
 abbrev BTreeHeap.empty {α : Type u} (lt : α → α → Bool ) := BTreeHeap.leaf (α := α) (lt := lt)
 
-theorem blah : n + 1 < m + 1 → n < m := by simp_arith
-                                           apply id
-
 /--Adds a new element to a given BTreeHeap.-/
 def BTreeHeap.insert (elem : α) (heap : BTreeHeap α lt o) : BTreeHeap α lt (o+1) :=
   match o, heap with
@@ -55,7 +52,7 @@ def BTreeHeap.insert (elem : α) (heap : BTreeHeap α lt o) : BTreeHeap α lt (o
       have s : (m + 1 < n + 1) = (m < n) := by simp_arith
       have q : m + 1 ≤ n := by apply Nat.le_of_lt_succ
                                rewrite[Nat.succ_eq_add_one]
-                               rw[s]
+                               rewrite[s]
                                simp[r]
       let result := branch a left (right.insert elem) (q)
       result
@@ -93,24 +90,57 @@ private inductive Direction
 | right
 deriving Repr
 
+theorem two_n_not_zero_n_not_zero (n : Nat) (p : ¬2*n = 0) : (¬n = 0) := by
+  cases n
+  case zero => contradiction
+  case succ => simp
+
 def BTreeHeap.popLast {α : Type u} {lt : α → α → Bool} (heap : BTreeHeap α lt (o+1)) : (α × BTreeHeap α lt o) :=
   match o, heap with
-  | (n+m), .branch a (left : BTreeHeap α lt n) (right : BTreeHeap α lt m) =>
+  | (n+m), .branch a (left : BTreeHeap α lt n) (right : BTreeHeap α lt m) m_le_n =>
     if p : 0 = (n+m) then
       (a, p▸BTreeHeap.leaf)
     else
-      let leftIsFull : Bool := (n+1).nextPowerOfTwo = n+1
+      --let leftIsFull : Bool := (n+1).nextPowerOfTwo = n+1
       let rightIsFull : Bool := (m+1).nextPowerOfTwo = m+1
-      if !leftIsFull || (rightIsFull && n != m) then
+      have m_gt_0_or_rightIsFull : m > 0 ∨ rightIsFull := by cases m <;> simp_arith
+      if r : m < n ∧ rightIsFull then
         --remove left
         match n, left with
-        | 0 , _ => sorry
-        | (l+1),  left =>
-          let (res, (newLeft : BTreeHeap α lt (l))) := left.popLast
-          (res, BTreeHeap.branch a newLeft right)
+        | (l+1), left =>
+          let (res, (newLeft : BTreeHeap α lt l)) := left.popLast
+          have q : l + m + 1 = l + 1 +m := by simp_arith
+          have s : m ≤ l := match r with
+          | .intro a _ => by apply Nat.le_of_lt_succ
+                             simp[a]
+          (res, q▸BTreeHeap.branch a newLeft right s)
       else
         --remove right
-        sorry
+        have : m > 0 := by
+          cases m_gt_0_or_rightIsFull
+          case inl => assumption
+          case inr h => simp_arith [h] at r
+                        -- p, r, m_le_n combined
+                        -- r and m_le_n yield m == n and p again done
+                        simp_arith
+                        --clear left right heap lt a h rightIsFull
+                        have n_eq_m : n = m := Nat.le_antisymm r m_le_n
+                        rewrite[n_eq_m] at p
+                        simp_arith at p
+                        apply Nat.zero_lt_of_ne_zero
+                        simp_arith[p]
+                        apply (two_n_not_zero_n_not_zero m)
+                        intro g
+                        have g := Eq.symm g
+                        revert g
+                        assumption
+        match m, right with
+        | (l+1), right =>
+          let (res, (newRight : BTreeHeap α lt l)) := right.popLast
+          have s : l ≤ n := by have x := (Nat.add_le_add_left (Nat.zero_le 1) l)
+                               have x := Nat.le_trans x m_le_n
+                               assumption
+          (res, BTreeHeap.branch a left newRight s)
 
 /--Removes the element at a given index. Use `BTreeHeap.indexOf` to find the respective index.-/
 def BTreeHeap.removeAt {α : Type u} {lt : α → α → Bool} {o : Nat} (index : Fin (o+1)) (heap : BTreeHeap α lt (o+1)) : BTreeHeap α lt o :=
@@ -131,10 +161,12 @@ private def TestHeap := let ins : {n: Nat} → Nat → BTreeHeap Nat (λ (a b : 
   |> ins 64
   |> ins 71
   |> ins 21
-  --|> ins 3
-  --|> ins 4
-  --|> ins 199
-
+  |> ins 3
+  |> ins 4
+  |> ins 199
+  |> ins 24
+  |> ins 3
 
 #eval TestHeap
-#eval TestHeap.indexOf 5
+#eval TestHeap.popLast
+#eval TestHeap.indexOf 71
