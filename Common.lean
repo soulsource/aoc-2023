@@ -5,4 +5,4 @@ import Common.String
 import Common.List
 import Common.Char
 import Common.Euclid
-import Common.BTreeHeap
+import Common.BinaryHeap
