@@ -6,3 +6,4 @@ import Common.List
 import Common.Char
 import Common.Euclid
 import Common.BinaryHeap
+import Common.Nat
