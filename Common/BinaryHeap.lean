@@ -41,60 +41,6 @@ def BinaryHeap.length : BinaryHeap α lt n → Nat := λ_ ↦ n
 /--Creates an empty BinaryHeap. Needs the heap predicate as parameter.-/
 abbrev BinaryHeap.empty {α : Type u} (lt : α → α → Bool ) := BinaryHeap.leaf (α := α) (lt := lt)
 
-mutual
-  def Nat.isEven : Nat → Prop
-  | .zero => True
-  | .succ n => Nat.isOdd n
-  def Nat.isOdd : Nat → Prop
-  | .zero => False
-  | .succ n => Nat.isEven n
-end
-
-theorem Nat.mul_2_is_even {n m : Nat} (h₁ : n = 2 * m) : Nat.isEven n := by
-  cases m with
-  | zero => simp[Nat.isEven, h₁]
-  | succ o => simp_arith at h₁
-              simp[Nat.isEven, Nat.isOdd, h₁]
-              exact Nat.mul_2_is_even (rfl)
-
-theorem Nat.isPowerOfTwo_even_or_one {n : Nat} (h₁ : n.isPowerOfTwo) : (n = 1 ∨ (Nat.isEven n)) := by
-  simp[Nat.isPowerOfTwo] at h₁
-  let ⟨k,h₂⟩ := h₁
-  cases k with
-  | zero => simp_arith[h₂]
-  | succ l => rewrite[Nat.pow_succ] at h₂
-              rewrite[Nat.mul_comm (2^l) 2] at h₂
-              exact Or.inr $ Nat.mul_2_is_even h₂
-
-mutual
-  theorem Nat.not_even_odd {n : Nat} (h₁ : ¬Nat.isEven n) : (Nat.isOdd n) := by
-    simp[Nat.isEven] at h₁
-    cases n with
-    | zero => contradiction
-    | succ o => simp[Nat.isEven, Nat.isOdd] at *
-                exact (Nat.not_odd_even (by simp[h₁]))
-  theorem Nat.not_odd_even {n : Nat} (h₁ : ¬Nat.isOdd n) : (Nat.isEven n) := by
-    simp[Nat.isOdd] at h₁
-    cases n with
-    | zero => trivial
-    | succ o => simp[Nat.isEven, Nat.isOdd] at *
-                exact (Nat.not_even_odd (by simp[h₁]))
-end
-
-mutual
-  theorem Nat.even_not_odd {n : Nat} (h₁ : Nat.isEven n) : ¬(Nat.isOdd n ):= by
-    cases n with
-    | zero => simp
-    | succ o => simp[Nat.isEven, Nat.isOdd] at *
-                simp[Nat.odd_not_even h₁]
-  theorem Nat.odd_not_even {n : Nat} (h₁ : Nat.isOdd n) : ¬(Nat.isEven n ):= by
-    cases n with
-    | zero => contradiction
-    | succ o => simp[Nat.isEven, Nat.isOdd] at *
-                simp[Nat.even_not_odd h₁]
-end
-
-
 theorem Nat.pred_even_odd {n : Nat} (h₁ : Nat.isEven n) (h₂ : n > 0) : Nat.isOdd n.pred := by
   cases n with
   | zero => contradiction
@@ -135,7 +81,7 @@ theorem power_of_two_mul_two_le {n m : Nat} (h₁ : (n+1).isPowerOfTwo) (h₂ : 
     have h₉ := Nat.pred_even_odd h₉ (by simp_arith[h₇])
     simp at h₉
     have h₁₀ := Nat.mul_2_is_even h₆
-    have h₁₀ := Nat.even_not_odd h₁₀
+    have h₁₀ := Nat.even_not_odd_even.mp h₁₀
     contradiction
   else by
     simp[Nat.not_gt_eq] at h₅

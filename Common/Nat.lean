@@ -91,3 +91,63 @@ theorem Nat.mul2_ispowerOfTwo_iff_isPowerOfTwo (n : Nat) : n.isPowerOfTwo ↔ (2
                     have h₄ := Nat.eq_of_mul_eq_mul_left (by decide : 0<2) h₄
                     exists l
   Iff.intro h₁ h₂
+
+
+mutual
+  -- intentionally not decidable. This is a logical model, not meant for runtime!
+  def Nat.isEven : Nat → Prop
+  | .zero => True
+  | .succ n => Nat.isOdd n
+  -- intentionally not decidable. This is a logical model, not meant for runtime!
+  def Nat.isOdd : Nat → Prop
+  | .zero => False
+  | .succ n => Nat.isEven n
+end
+
+theorem Nat.mul_2_is_even {n m : Nat} (h₁ : n = 2 * m) : Nat.isEven n := by
+  cases m with
+  | zero => simp[Nat.isEven, h₁]
+  | succ o => simp_arith at h₁
+              simp[Nat.isEven, Nat.isOdd, h₁]
+              exact Nat.mul_2_is_even (rfl)
+
+theorem Nat.isPowerOfTwo_even_or_one {n : Nat} (h₁ : n.isPowerOfTwo) : (n = 1 ∨ (Nat.isEven n)) := by
+  simp[Nat.isPowerOfTwo] at h₁
+  let ⟨k,h₂⟩ := h₁
+  cases k with
+  | zero => simp_arith[h₂]
+  | succ l => rewrite[Nat.pow_succ] at h₂
+              rewrite[Nat.mul_comm (2^l) 2] at h₂
+              exact Or.inr $ Nat.mul_2_is_even h₂
+
+mutual
+  private theorem Nat.not_even_odd {n : Nat} (h₁ : ¬Nat.isEven n) : (Nat.isOdd n) := by
+    cases n with
+    | zero => unfold Nat.isEven at h₁; contradiction
+    | succ o => simp[Nat.isEven, Nat.isOdd] at *
+                exact (Nat.not_odd_even (by simp[h₁]))
+  private theorem Nat.not_odd_even {n : Nat} (h₁ : ¬Nat.isOdd n) : (Nat.isEven n) := by
+    cases n with
+    | zero => trivial
+    | succ o => simp[Nat.isEven, Nat.isOdd] at *
+                exact (Nat.not_even_odd (by simp[h₁]))
+end
+
+mutual
+  private theorem Nat.even_not_odd {n : Nat} (h₁ : Nat.isEven n) : ¬(Nat.isOdd n ):= by
+    cases n with
+    | zero => unfold Nat.isOdd; trivial
+    | succ o => simp[Nat.isEven, Nat.isOdd] at *
+                simp[Nat.odd_not_even h₁]
+  private theorem Nat.odd_not_even {n : Nat} (h₁ : Nat.isOdd n) : ¬(Nat.isEven n ):= by
+    cases n with
+    | zero => contradiction
+    | succ o => simp[Nat.isEven, Nat.isOdd] at *
+                simp[Nat.even_not_odd h₁]
+end
+
+theorem Nat.odd_not_even_odd {n : Nat} : Nat.isOdd n ↔ ¬Nat.isEven n :=
+  Iff.intro Nat.odd_not_even Nat.not_even_odd
+
+theorem Nat.even_not_odd_even {n : Nat} : Nat.isEven n ↔ ¬Nat.isOdd n :=
+  Iff.intro Nat.even_not_odd Nat.not_odd_even
