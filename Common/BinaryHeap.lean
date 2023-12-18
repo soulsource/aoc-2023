@@ -41,12 +41,6 @@ def BinaryHeap.length : BinaryHeap α lt n → Nat := λ_ ↦ n
 /--Creates an empty BinaryHeap. Needs the heap predicate as parameter.-/
 abbrev BinaryHeap.empty {α : Type u} (lt : α → α → Bool ) := BinaryHeap.leaf (α := α) (lt := lt)
 
-theorem Nat.pred_even_odd {n : Nat} (h₁ : Nat.isEven n) (h₂ : n > 0) : Nat.isOdd n.pred := by
-  cases n with
-  | zero => contradiction
-  | succ o => simp[Nat.isEven] at h₁
-              assumption
-
 theorem power_of_two_mul_two_lt {n m : Nat} (h₁ : m.isPowerOfTwo) (h₂ : n < 2*m) (h₃ : ¬(n+1).isPowerOfTwo) : n+1 < 2*m :=
   if h₄ : n+1 > 2*m then by
     have h₂ := Nat.succ_le_of_lt h₂

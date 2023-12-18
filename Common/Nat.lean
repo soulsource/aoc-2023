@@ -151,3 +151,9 @@ theorem Nat.odd_not_even_odd {n : Nat} : Nat.isOdd n ↔ ¬Nat.isEven n :=
 
 theorem Nat.even_not_odd_even {n : Nat} : Nat.isEven n ↔ ¬Nat.isOdd n :=
   Iff.intro Nat.even_not_odd Nat.not_odd_even
+
+theorem Nat.pred_even_odd {n : Nat} (h₁ : Nat.isEven n) (h₂ : n > 0) : Nat.isOdd n.pred := by
+  cases n with
+  | zero => contradiction
+  | succ o => simp[Nat.isEven] at h₁
+              assumption
