@@ -3,7 +3,7 @@ namespace BinaryHeap
 /--A heap, represented as a binary indexed tree. The heap predicate is a type parameter, the index is the element count.-/
 inductive BinaryHeap (α : Type u) (lt : α → α → Bool): Nat → Type u
   | leaf : BinaryHeap α lt 0
-  | branch : (val : α) → (left : BinaryHeap α lt n) → (right : BinaryHeap α lt m) → m ≤ n → (n+1).isPowerOfTwo ∨ (m+1).isPowerOfTwo →  BinaryHeap α lt (n+m+1)
+  | branch : (val : α) → (left : BinaryHeap α lt n) → (right : BinaryHeap α lt m) → m ≤ n → n < 2*(m+1) → (n+1).isPowerOfTwo ∨ (m+1).isPowerOfTwo → BinaryHeap α lt (n+m+1)
 
 /--Please do not use this for anything meaningful. It's a debug function, with horrible performance.-/
 instance {α : Type u} {lt : α → α → Bool} [ToString α] : ToString (BinaryHeap α lt n) where
@@ -11,13 +11,13 @@ instance {α : Type u} {lt : α → α → Bool} [ToString α] : ToString (Binar
     --not very fast, doesn't matter, is for debugging
     let rec max_width := λ {m : Nat} (t : (BinaryHeap α lt m)) ↦ match m, t with
     | 0, .leaf => 0
-    | (_+_+1), BinaryHeap.branch a left right _ _ => max (ToString.toString a).length $ max (max_width left) (max_width right)
+    | (_+_+1), BinaryHeap.branch a left right _ _ _ => max (ToString.toString a).length $ max (max_width left) (max_width right)
     let max_width := max_width t
     let lines_left := Nat.log2 (n+1).nextPowerOfTwo
     let rec print_line := λ (mw : Nat) {m : Nat} (t : (BinaryHeap α lt m)) (lines : Nat)  ↦
       match m, t with
       | 0, _ => ""
-      | (_+_+1), BinaryHeap.branch a left right _ _ =>
+      | (_+_+1), BinaryHeap.branch a left right _ _ _ =>
         let thisElem := ToString.toString a
         let thisElem := (List.replicate (mw - thisElem.length) ' ').asString ++ thisElem
         let elems_in_last_line := if lines == 0 then 0 else 2^(lines-1)
@@ -98,14 +98,150 @@ private theorem power_of_two_eq_power_of_two (n : Nat) : n.isPowerOfTwo → (n.n
   case h₂ => exact Nat.one_isPowerOfTwo
   case h₃ => exact (Nat.pos_of_isPowerOfTwo h₁)
 
-private theorem power_of_two_iff_next_power_eq (n : Nat) : n.isPowerOfTwo ↔ (n.nextPowerOfTwo = n) :=
+theorem power_of_two_iff_next_power_eq (n : Nat) : n.isPowerOfTwo ↔ (n.nextPowerOfTwo = n) :=
   Iff.intro (power_of_two_eq_power_of_two n) (eq_power_of_two_power_of_two n)
+
+theorem power_of_two_mul_two_lt {n m : Nat} (h₁ : m.isPowerOfTwo) (h₂ : n < 2*m) (h₃ : ¬(n+1).isPowerOfTwo) : n+1 < 2*m :=
+  if h₄ : n+1 > 2*m then by
+    have h₂ := Nat.succ_le_of_lt h₂
+    rewrite[←Nat.not_ge_eq] at h₂
+    simp_arith at h₄
+    contradiction
+  else if h₅ : n+1 = 2*m then by
+    have h₆ := Nat.mul2_isPowerOfTwo_of_isPowerOfTwo h₁
+    rewrite[Nat.mul_comm 2 m] at h₅
+    rewrite[←h₅] at h₆
+    contradiction
+  else by
+    simp_arith at h₄
+    exact Nat.lt_of_le_of_ne h₄ h₅
+
+theorem Nat.mul2_ispowerOfTwo_iff_isPowerOfTwo (n : Nat) : n.isPowerOfTwo ↔ (2*n).isPowerOfTwo :=
+  have h₁ : n.isPowerOfTwo → (2*n).isPowerOfTwo := by
+    simp[Nat.mul_comm]
+    apply Nat.mul2_isPowerOfTwo_of_isPowerOfTwo
+  have h₂ : (2*n).isPowerOfTwo → n.isPowerOfTwo :=
+    if h₂ : n.nextPowerOfTwo = n then by
+      simp[power_of_two_iff_next_power_eq,h₂]
+    else by
+      intro h₃
+      simp[←power_of_two_iff_next_power_eq] at h₂
+      have h₅ := h₃
+      unfold Nat.isPowerOfTwo at h₃
+      let ⟨k,h₄⟩ := h₃
+      cases n with
+      | zero => contradiction
+      | succ m => cases k with
+        | zero => simp_arith at h₄
+                  have h₆ (m : Nat) : 2*m+2 > 2^0 := by
+                    induction m with
+                    | zero => decide
+                    | succ o o_ih => simp_arith at *
+                                     have h₆ := Nat.le_step $ Nat.le_step o_ih
+                                     simp_arith at h₆
+                                     assumption
+                  have h₆ := Nat.ne_of_lt (h₆ m)
+                  simp_arith at h₆
+                  rewrite[h₄] at h₆ --why is this needed?!?
+                  contradiction
+        | succ l => rewrite[Nat.pow_succ 2 l] at h₄
+                    rewrite[Nat.mul_comm (2^l) 2] at h₄
+                    have h₄ := Nat.eq_of_mul_eq_mul_left (by decide : 0<2) h₄
+                    exists l
+  Iff.intro h₁ h₂
+
+mutual
+  def Nat.isEven : Nat → Bool
+  | .zero => True
+  | .succ n => Nat.isOdd n
+  def Nat.isOdd : Nat → Bool
+  | .zero => False
+  | .succ n => Nat.isEven n
+end
+
+theorem Nat.mul_2_is_even {n m : Nat} (h₁ : n = 2 * m) : Nat.isEven n := by
+  cases m with
+  | zero => simp[Nat.isEven, h₁]
+  | succ o => simp_arith at h₁
+              simp[Nat.isEven, Nat.isOdd, h₁]
+              exact Nat.mul_2_is_even (rfl)
+
+theorem Nat.isPowerOfTwo_even_or_one {n : Nat} (h₁ : n.isPowerOfTwo) : (n = 1 ∨ (Nat.isEven n)) := by
+  simp[Nat.isPowerOfTwo] at h₁
+  let ⟨k,h₂⟩ := h₁
+  cases k with
+  | zero => simp_arith[h₂]
+  | succ l => rewrite[Nat.pow_succ] at h₂
+              rewrite[Nat.mul_comm (2^l) 2] at h₂
+              exact Or.inr $ Nat.mul_2_is_even h₂
+
+mutual
+  theorem Nat.not_even_odd {n : Nat} (h₁ : ¬Nat.isEven n) : (Nat.isOdd n) := by
+    simp[Nat.isEven] at h₁
+    cases n with
+    | zero => contradiction
+    | succ o => simp[Nat.isEven, Nat.isOdd] at *
+                exact (Nat.not_odd_even (by simp[h₁]))
+  theorem Nat.not_odd_even {n : Nat} (h₁ : ¬Nat.isOdd n) : (Nat.isEven n) := by
+    simp[Nat.isOdd] at h₁
+    cases n with
+    | zero => trivial
+    | succ o => simp[Nat.isEven, Nat.isOdd] at *
+                exact (Nat.not_even_odd (by simp[h₁]))
+end
+
+mutual
+  theorem Nat.even_not_odd {n : Nat} (h₁ : Nat.isEven n) : ¬(Nat.isOdd n ):= by
+    cases n with
+    | zero => simp
+    | succ o => simp[Nat.isEven, Nat.isOdd] at *
+                simp[Nat.odd_not_even h₁]
+  theorem Nat.odd_not_even {n : Nat} (h₁ : Nat.isOdd n) : ¬(Nat.isEven n ):= by
+    cases n with
+    | zero => contradiction
+    | succ o => simp[Nat.isEven, Nat.isOdd] at *
+                simp[Nat.even_not_odd h₁]
+end
+
+
+theorem Nat.pred_even_odd {n : Nat} (h₁ : Nat.isEven n) (h₂ : n > 0) : Nat.isOdd n.pred := by
+  cases n with
+  | zero => contradiction
+  | succ o => simp[Nat.isEven] at h₁
+              assumption
+
+theorem power_of_two_mul_two_le {n m : Nat} (h₁ : (n+1).isPowerOfTwo) (h₂ : n < 2*(m+1)) (h₃ : ¬(m+1).isPowerOfTwo) (h₄ : m > 0): n < 2*m :=
+  if h₅ : n > 2*m then by
+    simp_arith at h₂
+    simp_arith at h₅
+    have h₆ : n+1 = 2*(m+1) := by simp_arith[Nat.le_antisymm h₂ h₅]
+    rewrite[h₆] at h₁
+    rewrite[←(Nat.mul2_ispowerOfTwo_iff_isPowerOfTwo (m+1))] at h₁
+    contradiction
+  else if h₆ : n = 2*m then by
+    -- since (n+1) is a power of 2, n cannot be an even number, but n = 2*m means it's even
+    -- ha, thought I wouldn't see that, didn't you? Thought you're smarter than I, computer?
+    have h₇ : n > 0 := by rewrite[h₆]
+                          apply Nat.mul_lt_mul_of_pos_left h₄ (by decide :2 > 0)
+    have h₈ : n ≠ 0 := Ne.symm $ Nat.ne_of_lt h₇
+    have h₉ := Nat.isPowerOfTwo_even_or_one h₁
+    simp[h₈] at h₉
+    have h₉ := Nat.pred_even_odd h₉ (by simp_arith[h₇])
+    simp at h₉
+    have h₁₀ := Nat.mul_2_is_even h₆
+    have h₁₀ := Nat.even_not_odd h₁₀
+    contradiction
+  else by
+    simp[Nat.not_gt_eq] at h₅
+    have h₅ := Nat.eq_or_lt_of_le h₅
+    simp[h₆] at h₅
+    assumption
 
 /--Adds a new element to a given BinaryHeap.-/
 def BinaryHeap.insert (elem : α) (heap : BinaryHeap α lt o) : BinaryHeap α lt (o+1) :=
   match o, heap with
-  | 0, .leaf => BinaryHeap.branch elem (BinaryHeap.leaf) (BinaryHeap.leaf) (by simp) (by simp[Nat.one_isPowerOfTwo])
-  | (n+m+1), .branch a left right p subtree_complete =>
+  | 0, .leaf => BinaryHeap.branch elem (BinaryHeap.leaf) (BinaryHeap.leaf) (by simp) (by simp) (by simp[Nat.one_isPowerOfTwo])
+  | (n+m+1), .branch a left right p max_height_difference subtree_complete =>
     let (elem, a) := if lt elem a then (a, elem) else (elem, a)
     -- okay, based on n and m we know if we want to add left or right.
     -- the left tree is full, if (n+1) is a power of two AND n != m
@@ -116,7 +252,8 @@ def BinaryHeap.insert (elem : α) (heap : BinaryHeap α lt o) : BinaryHeap α lt
                                rewrite[Nat.succ_eq_add_one]
                                rewrite[s]
                                simp[r]
-      let result := branch a left (right.insert elem) (q) (by simp[(eq_power_of_two_power_of_two (n+1)), r])
+      have difference_decreased := Nat.le_succ_of_le $ Nat.le_succ_of_le max_height_difference
+      let result := branch a left (right.insert elem) (q) difference_decreased (by simp[(eq_power_of_two_power_of_two (n+1)), r])
       result
     else
       have q : m ≤ n+1 := by apply (Nat.le_of_succ_le)
@@ -141,7 +278,15 @@ def BinaryHeap.insert (elem : α) (heap : BinaryHeap α lt o) : BinaryHeap α lt
           cases subtree_complete
           case inl => contradiction
           case inr => trivial
-      let result := branch a (left.insert elem) right q (Or.inr right_is_power_of_two)
+      have still_in_range : n + 1 < 2 * (m + 1) := by
+        rewrite[Decidable.not_and_iff_or_not (m<n) leftIsFull] at r
+        cases r
+        case inl h₁ => rewrite[Nat.not_gt_eq n m] at h₁
+                       simp_arith[Nat.le_antisymm h₁ p]
+        case inr h₁ => simp[←power_of_two_iff_next_power_eq] at h₁
+                       simp[h₁] at subtree_complete
+                       exact power_of_two_mul_two_lt subtree_complete max_height_difference h₁
+      let result := branch a (left.insert elem) right q still_in_range (Or.inr right_is_power_of_two)
       have letMeSpellItOutForYou : n + 1 + m + 1 = n + m + 1 + 1 := by simp_arith
       letMeSpellItOutForYou ▸ result
 
@@ -150,7 +295,7 @@ def BinaryHeap.insert (elem : α) (heap : BinaryHeap α lt o) : BinaryHeap α lt
 def BinaryHeap.indexOfAux {α : Type u} {lt : α → α → Bool} [BEq α] (elem : α) (heap : BinaryHeap α lt o) (currentIndex : Nat) : Option (Fin (o+currentIndex)) :=
   match o, heap with
   | 0, .leaf => none
-  | (n+m+1), .branch a left right _ _ =>
+  | (n+m+1), .branch a left right _ _ _ =>
     if a == elem then
       let result := Fin.ofNat' currentIndex (by simp_arith)
       some result
@@ -179,7 +324,7 @@ theorem two_n_not_zero_n_not_zero (n : Nat) (p : ¬2*n = 0) : (¬n = 0) := by
 
 def BinaryHeap.popLast {α : Type u} {lt : α → α → Bool} (heap : BinaryHeap α lt (o+1)) : (α × BinaryHeap α lt o) :=
   match o, heap with
-  | (n+m), .branch a (left : BinaryHeap α lt n) (right : BinaryHeap α lt m) m_le_n subtree_complete =>
+  | (n+m), .branch a (left : BinaryHeap α lt n) (right : BinaryHeap α lt m) m_le_n max_height_difference subtree_complete =>
     if p : 0 = (n+m) then
       (a, p▸BinaryHeap.leaf)
     else
@@ -199,7 +344,8 @@ def BinaryHeap.popLast {α : Type u} {lt : α → α → Bool} (heap : BinaryHea
             have r := And.right r
             simp[←power_of_two_iff_next_power_eq] at r
             assumption
-          (res, q▸BinaryHeap.branch a newLeft right s (Or.inr rightIsFull))
+          have l_lt_2_m_succ : l < 2 * (m+1) := by apply Nat.lt_of_succ_lt; assumption
+          (res, q▸BinaryHeap.branch a newLeft right s l_lt_2_m_succ (Or.inr rightIsFull))
       else
         --remove right
         have : m > 0 := by
@@ -234,13 +380,23 @@ def BinaryHeap.popLast {α : Type u} {lt : α → α → Bool} (heap : BinaryHea
                            rewrite[←h₂] at subtree_complete
                            simp at subtree_complete
                            assumption
-            case inr h₁ => simp at h₁
-                           rewrite[←power_of_two_iff_next_power_eq] at h₁
-                           subst m
-                           cases subtree_complete
-                           case inl => assumption
-                           case inr => contradiction
-          (res, BinaryHeap.branch a left newRight s (Or.inl leftIsFull))
+            case inr h₁ => simp_arith[←power_of_two_iff_next_power_eq] at h₁
+                           rewrite[h₂] at h₁
+                           simp[h₁] at subtree_complete
+                           assumption
+          have still_in_range : n < 2*(l+1) := by
+            rewrite[Decidable.not_and_iff_or_not (l+1<n) rightIsFull] at r
+            cases r with
+            | inl h₁ => simp_arith at h₁
+                        have h₃ := Nat.le_antisymm m_le_n h₁
+                        subst n
+                        have h₄ := Nat.mul_lt_mul_of_pos_right (by decide : 1 < 2) this
+                        simp at h₄
+                        assumption
+            | inr h₁ => simp[←power_of_two_iff_next_power_eq, h₂] at h₁
+                        apply power_of_two_mul_two_le <;> assumption
+
+          (res, BinaryHeap.branch a left newRight s still_in_range (Or.inl leftIsFull))
 
 /--Removes the element at a given index. Use `BinaryHeap.indexOf` to find the respective index.-/
 def BinaryHeap.removeAt {α : Type u} {lt : α → α → Bool} {o : Nat} (index : Fin (o+1)) (heap : BinaryHeap α lt (o+1)) : BinaryHeap α lt o :=
