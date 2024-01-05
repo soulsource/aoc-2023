@@ -2,24 +2,46 @@ import Common.Nat
 
 namespace BinaryHeap
 
-/--A heap, represented as a binary indexed tree. The heap predicate is a type parameter, the index is the element count.-/
-inductive BinaryHeap (α : Type u) (lt : α → α → Bool): Nat → Type u
-  | leaf : BinaryHeap α lt 0
-  | branch : (val : α) → (left : BinaryHeap α lt n) → (right : BinaryHeap α lt m) → m ≤ n → n < 2*(m+1) → (n+1).isPowerOfTwo ∨ (m+1).isPowerOfTwo → BinaryHeap α lt (n+m+1)
+inductive BalancedTree (α : Type u) : Nat → Type u
+  | leaf : BalancedTree α 0
+  | branch :
+    (val : α)
+    → (left : BalancedTree α n)
+    → (right : BalancedTree α m)
+    → m ≤ n
+    → n < 2*(m+1)
+    → (n+1).isPowerOfTwo ∨ (m+1).isPowerOfTwo
+    → BalancedTree α (n+m+1)
+
+def WellDefinedLt {α : Type u} (lt : α → α → Bool) : Prop := ∀ (a b : α), lt a b → ¬lt b a
+
+def HeapPredicate {α : Type u} {n : Nat} (heap : BalancedTree α n) (lt : α → α → Bool) : Prop :=
+  match heap with
+  | .leaf => True
+  | .branch a left right _ _ _ =>
+    HeapPredicate left lt ∧ HeapPredicate right lt ∧ notSmallerOrLeaf a left ∧ notSmallerOrLeaf a right
+    where notSmallerOrLeaf := λ {m : Nat} (v : α) (h : BalancedTree α m) ↦ match h with
+                           | .leaf => true
+                           | .branch w _ _ _ _ _ => !lt w v
+
+structure BinaryHeap (α : Type u) (lt : α → α → Bool) (n : Nat) where
+  tree : BalancedTree α n
+  valid : HeapPredicate tree lt
+  wellDefinedLt : WellDefinedLt lt
 
 /--Please do not use this for anything meaningful. It's a debug function, with horrible performance.-/
-instance {α : Type u} {lt : α → α → Bool} [ToString α] : ToString (BinaryHeap α lt n) where
+instance {α : Type u} [ToString α] : ToString (BalancedTree α n) where
   toString := λt ↦
     --not very fast, doesn't matter, is for debugging
-    let rec max_width := λ {m : Nat} (t : (BinaryHeap α lt m)) ↦ match m, t with
+    let rec max_width := λ {m : Nat} (t : (BalancedTree α m)) ↦ match m, t with
     | 0, .leaf => 0
-    | (_+_+1), BinaryHeap.branch a left right _ _ _ => max (ToString.toString a).length $ max (max_width left) (max_width right)
+    | (_+_+1), BalancedTree.branch a left right _ _ _ => max (ToString.toString a).length $ max (max_width left) (max_width right)
     let max_width := max_width t
     let lines_left := Nat.log2 (n+1).nextPowerOfTwo
-    let rec print_line := λ (mw : Nat) {m : Nat} (t : (BinaryHeap α lt m)) (lines : Nat)  ↦
+    let rec print_line := λ (mw : Nat) {m : Nat} (t : (BalancedTree α m)) (lines : Nat)  ↦
       match m, t with
       | 0, _ => ""
-      | (_+_+1), BinaryHeap.branch a left right _ _ _ =>
+      | (_+_+1), BalancedTree.branch a left right _ _ _ =>
         let thisElem := ToString.toString a
         let thisElem := (List.replicate (mw - thisElem.length) ' ').asString ++ thisElem
         let elems_in_last_line := if lines == 0 then 0 else 2^(lines-1)
@@ -36,10 +58,15 @@ instance {α : Type u} {lt : α → α → Bool} [ToString α] : ToString (Binar
     print_line max_width t lines_left
 
 /-- Extracts the element count. For when pattern matching is too much work. -/
-def BinaryHeap.length : BinaryHeap α lt n → Nat := λ_ ↦ n
+def BalancedTree.length : BalancedTree α n → Nat := λ_ ↦ n
 
-/--Creates an empty BinaryHeap. Needs the heap predicate as parameter.-/
-abbrev BinaryHeap.empty {α : Type u} (lt : α → α → Bool ) := BinaryHeap.leaf (α := α) (lt := lt)
+def BalancedTree.root (tree : BalancedTree α n) (_ : 0 < n) : α := match tree with
+| .branch a _ _ _ _ _ => a
+
+/--Creates an empty BalancedTree. Needs the heap predicate as parameter.-/
+abbrev BalancedTree.empty {α : Type u} := BalancedTree.leaf (α := α)
+
+theorem BalancedTree.emptyIsHeap {α : Type u} (lt : α → α → Bool) : HeapPredicate BalancedTree.empty lt := by trivial
 
 theorem power_of_two_mul_two_lt {n m : Nat} (h₁ : m.isPowerOfTwo) (h₂ : n < 2*m) (h₃ : ¬(n+1).isPowerOfTwo) : n+1 < 2*m :=
   if h₄ : n+1 > 2*m then by
@@ -83,10 +110,10 @@ theorem power_of_two_mul_two_le {n m : Nat} (h₁ : (n+1).isPowerOfTwo) (h₂ : 
     simp[h₆] at h₅
     assumption
 
-/--Adds a new element to a given BinaryHeap.-/
-def BinaryHeap.insert (elem : α) (heap : BinaryHeap α lt o) : BinaryHeap α lt (o+1) :=
+/--Adds a new element to a given BalancedTree.-/
+private def BalancedTree.heapInsert (lt : α → α → Bool) (elem : α) (heap : BalancedTree α o) : BalancedTree α (o+1) :=
   match o, heap with
-  | 0, .leaf => BinaryHeap.branch elem (BinaryHeap.leaf) (BinaryHeap.leaf) (by simp) (by simp) (by simp[Nat.one_isPowerOfTwo])
+  | 0, .leaf => BalancedTree.branch elem (BalancedTree.leaf) (BalancedTree.leaf) (by simp) (by simp) (by simp[Nat.one_isPowerOfTwo])
   | (n+m+1), .branch a left right p max_height_difference subtree_complete =>
     let (elem, a) := if lt elem a then (a, elem) else (elem, a)
     -- okay, based on n and m we know if we want to add left or right.
@@ -99,7 +126,7 @@ def BinaryHeap.insert (elem : α) (heap : BinaryHeap α lt o) : BinaryHeap α lt
                                rewrite[s]
                                simp[r]
       have difference_decreased := Nat.le_succ_of_le $ Nat.le_succ_of_le max_height_difference
-      let result := branch a left (right.insert elem) (q) difference_decreased (by simp[(Nat.power_of_two_iff_next_power_eq (n+1)), r])
+      let result := branch a left (right.heapInsert lt elem) (q) difference_decreased (by simp[(Nat.power_of_two_iff_next_power_eq (n+1)), r])
       result
     else
       have q : m ≤ n+1 := by apply (Nat.le_of_succ_le)
@@ -132,13 +159,53 @@ def BinaryHeap.insert (elem : α) (heap : BinaryHeap α lt o) : BinaryHeap α lt
         case inr h₁ => simp[←Nat.power_of_two_iff_next_power_eq] at h₁
                        simp[h₁] at subtree_complete
                        exact power_of_two_mul_two_lt subtree_complete max_height_difference h₁
-      let result := branch a (left.insert elem) right q still_in_range (Or.inr right_is_power_of_two)
+      let result := branch a (left.heapInsert lt elem) right q still_in_range (Or.inr right_is_power_of_two)
       have letMeSpellItOutForYou : n + 1 + m + 1 = n + m + 1 + 1 := by simp_arith
       letMeSpellItOutForYou ▸ result
 
+theorem BalancedTree.heapInsertRootSameOrElem {elem : α} {heap : BalancedTree α o} {lt : α → α → Bool} (h₁ : HeapPredicate heap lt) (h₂ : 0 < o) : (BalancedTree.root (heap.heapInsert lt elem) (by simp_arith) = elem) ∨ (BalancedTree.root (heap.heapInsert lt elem) (by simp_arith) = BalancedTree.root heap h₂) :=
+  match o, heap with
+  | (n+m+1), .branch v l r _ _ _ =>
+    if h₃ : m < n ∧ Nat.nextPowerOfTwo (n + 1) = n + 1 then by
+      unfold BalancedTree.heapInsert
+      simp[h₃]
+      cases (lt elem v) <;> simp[instDecidableEqBool, Bool.decEq, BalancedTree.root]
+    else by
+      unfold BalancedTree.heapInsert
+      simp[h₃]
+      cases (lt elem v)
+      <;> simp[instDecidableEqBool, Bool.decEq, BalancedTree.root]
+      <;> split
+      <;> case _ nn mm x _ _ _ _ _ _ h₅ h₄ _ =>
+        sorry
 
-/--Helper function for BinaryHeap.indexOf.-/
-def BinaryHeap.indexOfAux {α : Type u} {lt : α → α → Bool} [BEq α] (elem : α) (heap : BinaryHeap α lt o) (currentIndex : Nat) : Option (Fin (o+currentIndex)) :=
+
+theorem BalancedTree.heapInsertIsHeap {elem : α} {heap : BalancedTree α o} {lt : α → α → Bool} (h₁ : HeapPredicate heap lt) (h₂ : WellDefinedLt lt) : HeapPredicate (heap.heapInsert lt elem) lt :=
+  match o, heap with
+  | 0, .leaf => by trivial
+  | (n+m+1), .branch v l r _ _ _ =>
+    if h₃ : m < n ∧ Nat.nextPowerOfTwo (n + 1) = n + 1 then by
+      unfold BalancedTree.heapInsert
+      simp[h₃]
+      cases h₄ : (lt elem v) <;> simp[instDecidableEqBool, Bool.decEq]
+      case true => sorry
+      case false =>
+        unfold HeapPredicate
+        unfold HeapPredicate at h₁
+        have h₅ : (HeapPredicate (BalancedTree.heapInsert lt elem r) lt) := BalancedTree.heapInsertIsHeap h₁.right.left h₂
+        simp[h₁, h₅]
+        unfold HeapPredicate.notSmallerOrLeaf
+        split <;> simp
+        case h_2 newTop _ _ _ _ _ _ h₆ =>
+          -- need to show that newTop = elem or newTop = oldTop (oldTop is in h₁)
+          sorry
+    else by
+      unfold BalancedTree.heapInsert
+      simp[h₃]
+      sorry
+
+/--Helper function for BalancedTree.indexOf.-/
+def BalancedTree.indexOfAux {α : Type u} [BEq α] (elem : α) (heap : BalancedTree α o) (currentIndex : Nat) : Option (Fin (o+currentIndex)) :=
   match o, heap with
   | 0, .leaf => none
   | (n+m+1), .branch a left right _ _ _ =>
@@ -155,7 +222,7 @@ def BinaryHeap.indexOfAux {α : Type u} {lt : α → α → Bool} [BEq α] (elem
       found_right
 
 /--Finds the first occurance of a given element in the heap and returns its index.-/
-def BinaryHeap.indexOf {α : Type u} {lt : α → α → Bool} [BEq α] (elem : α) (heap : BinaryHeap α lt o) : Option (Fin o) :=
+def BalancedTree.indexOf {α : Type u} [BEq α] (elem : α) (heap : BalancedTree α o) : Option (Fin o) :=
   indexOfAux elem heap 0
 
 private inductive Direction
@@ -168,11 +235,11 @@ theorem two_n_not_zero_n_not_zero (n : Nat) (p : ¬2*n = 0) : (¬n = 0) := by
   case zero => contradiction
   case succ => simp
 
-def BinaryHeap.popLast {α : Type u} {lt : α → α → Bool} (heap : BinaryHeap α lt (o+1)) : (α × BinaryHeap α lt o) :=
+def BalancedTree.popLast {α : Type u} (heap : BalancedTree α (o+1)) : (α × BalancedTree α o) :=
   match o, heap with
-  | (n+m), .branch a (left : BinaryHeap α lt n) (right : BinaryHeap α lt m) m_le_n max_height_difference subtree_complete =>
+  | (n+m), .branch a (left : BalancedTree α n) (right : BalancedTree α m) m_le_n max_height_difference subtree_complete =>
     if p : 0 = (n+m) then
-      (a, p▸BinaryHeap.leaf)
+      (a, p▸BalancedTree.leaf)
     else
       --let leftIsFull : Bool := (n+1).nextPowerOfTwo = n+1
       let rightIsFull : Bool := (m+1).nextPowerOfTwo = m+1
@@ -181,7 +248,7 @@ def BinaryHeap.popLast {α : Type u} {lt : α → α → Bool} (heap : BinaryHea
         --remove left
         match n, left with
         | (l+1), left =>
-          let (res, (newLeft : BinaryHeap α lt l)) := left.popLast
+          let (res, (newLeft : BalancedTree α l)) := left.popLast
           have q : l + m + 1 = l + 1 +m := by simp_arith
           have s : m ≤ l := match r with
           | .intro a _ => by apply Nat.le_of_lt_succ
@@ -191,7 +258,7 @@ def BinaryHeap.popLast {α : Type u} {lt : α → α → Bool} (heap : BinaryHea
             simp[←Nat.power_of_two_iff_next_power_eq] at r
             assumption
           have l_lt_2_m_succ : l < 2 * (m+1) := by apply Nat.lt_of_succ_lt; assumption
-          (res, q▸BinaryHeap.branch a newLeft right s l_lt_2_m_succ (Or.inr rightIsFull))
+          (res, q▸BalancedTree.branch a newLeft right s l_lt_2_m_succ (Or.inr rightIsFull))
       else
         --remove right
         have : m > 0 := by
@@ -214,7 +281,7 @@ def BinaryHeap.popLast {α : Type u} {lt : α → α → Bool} (heap : BinaryHea
                         assumption
         match h₂ : m, right with
         | (l+1), right =>
-          let (res, (newRight : BinaryHeap α lt l)) := right.popLast
+          let (res, (newRight : BalancedTree α l)) := right.popLast
           have s : l ≤ n := by have x := (Nat.add_le_add_left (Nat.zero_le 1) l)
                                have x := Nat.le_trans x m_le_n
                                assumption
@@ -242,17 +309,18 @@ def BinaryHeap.popLast {α : Type u} {lt : α → α → Bool} (heap : BinaryHea
             | inr h₁ => simp[←Nat.power_of_two_iff_next_power_eq, h₂] at h₁
                         apply power_of_two_mul_two_le <;> assumption
 
-          (res, BinaryHeap.branch a left newRight s still_in_range (Or.inl leftIsFull))
+          (res, BalancedTree.branch a left newRight s still_in_range (Or.inl leftIsFull))
 
-/--Removes the element at a given index. Use `BinaryHeap.indexOf` to find the respective index.-/
-def BinaryHeap.removeAt {α : Type u} {lt : α → α → Bool} {o : Nat} (index : Fin (o+1)) (heap : BinaryHeap α lt (o+1)) : BinaryHeap α lt o :=
+/--Removes the element at a given index. Use `BalancedTree.indexOf` to find the respective index.-/
+def BalancedTree.heapRemoveAt {α : Type u} (lt : α → α → Bool) {o : Nat} (index : Fin (o+1)) (heap : BalancedTree α (o+1)) : BalancedTree α o :=
   -- first remove the last element and remember its value
   sorry
 
 -------------------------------------------------------------------------------------------------------
 
-private def TestHeap := let ins : {n: Nat} → Nat → BinaryHeap Nat (λ (a b : Nat) ↦ a < b) n → BinaryHeap Nat (λ (a b : Nat) ↦ a < b) (n+1) := BinaryHeap.insert
-  ins 5 (BinaryHeap.empty (λ (a b : Nat) ↦ a < b))
+private def TestHeap :=
+  let ins : {n: Nat} → Nat → BalancedTree Nat n → BalancedTree Nat (n+1) := λ x y ↦ BalancedTree.heapInsert (.<.) x y
+  ins 5 BalancedTree.empty
   |> ins 3
   |> ins 7
   |> ins 12
