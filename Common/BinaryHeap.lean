@@ -13,6 +13,9 @@ inductive BalancedTree (α : Type u) : Nat → Type u
     → (n+1).isPowerOfTwo ∨ (m+1).isPowerOfTwo
     → BalancedTree α (n+m+1)
 
+def BalancedTree.root (tree : BalancedTree α n) (_ : 0 < n) : α := match tree with
+| .branch a _ _ _ _ _ => a
+
 def WellDefinedLt {α : Type u} (lt : α → α → Bool) : Prop := ∀ (a b : α), lt a b → ¬lt b a
 
 def HeapPredicate {α : Type u} {n : Nat} (heap : BalancedTree α n) (lt : α → α → Bool) : Prop :=
@@ -59,9 +62,6 @@ instance {α : Type u} [ToString α] : ToString (BalancedTree α n) where
 
 /-- Extracts the element count. For when pattern matching is too much work. -/
 def BalancedTree.length : BalancedTree α n → Nat := λ_ ↦ n
-
-def BalancedTree.root (tree : BalancedTree α n) (_ : 0 < n) : α := match tree with
-| .branch a _ _ _ _ _ => a
 
 /--Creates an empty BalancedTree. Needs the heap predicate as parameter.-/
 abbrev BalancedTree.empty {α : Type u} := BalancedTree.leaf (α := α)
@@ -165,10 +165,10 @@ private def BalancedTree.heapInsert (lt : α → α → Bool) (elem : α) (heap 
 
 private theorem BalancedTree.rootSeesThroughCast
   (n m : Nat)
-  (heap : BalancedTree α (n+1+m+1))
   (h₁ : n+1+m+1=n+m+1+1)
   (h₂ : 0<n+1+m+1)
-  (h₃ : 0<n+m+1+1) : heap.root h₂ = (h₁▸heap).root h₃ := by
+  (h₃ : 0<n+m+1+1)
+  (heap : BalancedTree α (n+1+m+1)) : (h₁▸heap).root h₃ = heap.root h₂ := by
   induction m generalizing n
   case zero => simp
   case succ o ho =>
@@ -180,21 +180,19 @@ private theorem BalancedTree.rootSeesThroughCast
     revert heap h₁ h₂ h₃
     assumption
 
-theorem BalancedTree.heapInsertRootSameOrElem {elem : α} {heap : BalancedTree α o} {lt : α → α → Bool} (h₁ : HeapPredicate heap lt) (h₂ : 0 < o) : (BalancedTree.root (heap.heapInsert lt elem) (by simp_arith) = elem) ∨ (BalancedTree.root (heap.heapInsert lt elem) (by simp_arith) = BalancedTree.root heap h₂) :=
+theorem BalancedTree.heapInsertRootSameOrElem {elem : α} {heap : BalancedTree α o} {lt : α → α → Bool} : (BalancedTree.root (heap.heapInsert lt elem) (by simp_arith) = elem) ∨ (BalancedTree.root (heap.heapInsert lt elem) (by simp_arith) = BalancedTree.root heap h₂) :=
   match o, heap with
   | (n+m+1), .branch v l r _ _ _ =>
-    if h₃ : m < n ∧ Nat.nextPowerOfTwo (n + 1) = n + 1 then by
+    if h : m < n ∧ Nat.nextPowerOfTwo (n + 1) = n + 1 then by
       unfold BalancedTree.heapInsert
-      simp[h₃]
+      simp[h]
       cases (lt elem v) <;> simp[instDecidableEqBool, Bool.decEq, BalancedTree.root]
     else by
       unfold BalancedTree.heapInsert
-      simp[h₃]
+      simp[h]
+      rw[rootSeesThroughCast n m (by simp_arith) (by simp_arith) (by simp_arith)]
       cases (lt elem v)
       <;> simp[instDecidableEqBool, Bool.decEq, BalancedTree.root]
-      <;> split
-      <;> case _ nn mm x _ _ _ _ _ _ h₅ h₄ _ =>
-        sorry
 
 
 theorem BalancedTree.heapInsertIsHeap {elem : α} {heap : BalancedTree α o} {lt : α → α → Bool} (h₁ : HeapPredicate heap lt) (h₂ : WellDefinedLt lt) : HeapPredicate (heap.heapInsert lt elem) lt :=
