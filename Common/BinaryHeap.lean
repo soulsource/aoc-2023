@@ -23,9 +23,9 @@ def HeapPredicate {α : Type u} {n : Nat} (heap : BalancedTree α n) (lt : α �
   | .leaf => True
   | .branch a left right _ _ _ =>
     HeapPredicate left lt ∧ HeapPredicate right lt ∧ notSmallerOrLeaf a left ∧ notSmallerOrLeaf a right
-    where notSmallerOrLeaf := λ {m : Nat} (v : α) (h : BalancedTree α m) ↦ match h with
-                           | .leaf => true
-                           | .branch w _ _ _ _ _ => !lt w v
+    where notSmallerOrLeaf := λ {m : Nat} (v : α) (h : BalancedTree α m) ↦ match m with
+                              | .zero => true
+                              | .succ o => !lt (h.root (by simp_arith)) v
 
 structure BinaryHeap (α : Type u) (lt : α → α → Bool) (n : Nat) where
   tree : BalancedTree α n
@@ -180,7 +180,7 @@ private theorem BalancedTree.rootSeesThroughCast
     revert heap h₁ h₂ h₃
     assumption
 
-theorem BalancedTree.heapInsertRootSameOrElem {elem : α} {heap : BalancedTree α o} {lt : α → α → Bool} : (BalancedTree.root (heap.heapInsert lt elem) (by simp_arith) = elem) ∨ (BalancedTree.root (heap.heapInsert lt elem) (by simp_arith) = BalancedTree.root heap h₂) :=
+theorem BalancedTree.heapInsertRootSameOrElem (elem : α) (heap : BalancedTree α o) (lt : α → α → Bool) (h₂ : 0 < o): (BalancedTree.root (heap.heapInsert lt elem) (by simp_arith) = elem) ∨ (BalancedTree.root (heap.heapInsert lt elem) (by simp_arith) = BalancedTree.root heap h₂) :=
   match o, heap with
   | (n+m+1), .branch v l r _ _ _ =>
     if h : m < n ∧ Nat.nextPowerOfTwo (n + 1) = n + 1 then by
@@ -194,6 +194,10 @@ theorem BalancedTree.heapInsertRootSameOrElem {elem : α} {heap : BalancedTree �
       cases (lt elem v)
       <;> simp[instDecidableEqBool, Bool.decEq, BalancedTree.root]
 
+theorem BalancedTree.heapInsertEmptyElem (elem : α) (heap : BalancedTree α o) (lt : α → α → Bool) (h₂ : ¬0 < o) : (BalancedTree.root (heap.heapInsert lt elem) (by simp_arith) = elem) :=
+  have : o = 0 := Nat.eq_zero_of_le_zero $ (Nat.not_lt_eq 0 o).mp h₂
+  match o, heap with
+  | 0, .leaf => by simp[BalancedTree.heapInsert, root]
 
 theorem BalancedTree.heapInsertIsHeap {elem : α} {heap : BalancedTree α o} {lt : α → α → Bool} (h₁ : HeapPredicate heap lt) (h₂ : WellDefinedLt lt) : HeapPredicate (heap.heapInsert lt elem) lt :=
   match o, heap with
@@ -210,10 +214,23 @@ theorem BalancedTree.heapInsertIsHeap {elem : α} {heap : BalancedTree α o} {lt
         have h₅ : (HeapPredicate (BalancedTree.heapInsert lt elem r) lt) := BalancedTree.heapInsertIsHeap h₁.right.left h₂
         simp[h₁, h₅]
         unfold HeapPredicate.notSmallerOrLeaf
-        split <;> simp
-        case h_2 newTop _ _ _ _ _ _ h₆ =>
-          -- need to show that newTop = elem or newTop = oldTop (oldTop is in h₁)
-          sorry
+        simp_arith[heapInsertRootSameOrElem]
+        cases h₆: (0 < m : Bool)
+        case false =>
+          have h₆ : ¬0 < m := of_decide_eq_false h₆
+          have h₇ := heapInsertEmptyElem elem r lt h₆
+          simp[*]
+        case true =>
+          simp at h₆
+          have h₇ := heapInsertRootSameOrElem elem r lt h₆
+          cases h₇ <;> simp[*]
+          have h₈ := h₁.right.right.right
+          unfold HeapPredicate.notSmallerOrLeaf at h₈
+          simp at h₈
+          cases m <;> simp at h₈
+          case inr.zero => contradiction
+          case inr.succ => simp[h₈]
+
     else by
       unfold BalancedTree.heapInsert
       simp[h₃]
