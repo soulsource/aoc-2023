@@ -163,6 +163,23 @@ private def BalancedTree.heapInsert (lt : α → α → Bool) (elem : α) (heap 
       have letMeSpellItOutForYou : n + 1 + m + 1 = n + m + 1 + 1 := by simp_arith
       letMeSpellItOutForYou ▸ result
 
+private theorem BalancedTree.rootSeesThroughCast
+  (n m : Nat)
+  (heap : BalancedTree α (n+1+m+1))
+  (h₁ : n+1+m+1=n+m+1+1)
+  (h₂ : 0<n+1+m+1)
+  (h₃ : 0<n+m+1+1) : heap.root h₂ = (h₁▸heap).root h₃ := by
+  induction m generalizing n
+  case zero => simp
+  case succ o ho =>
+    have h₄ := ho (n+1)
+    have h₅ : n+1+1+o+1 = n+1+(Nat.succ o)+1 := by simp_arith
+    rewrite[h₅] at h₄
+    have h₆ : n + 1 + o + 1 + 1 = n + (Nat.succ o + 1 + 1) := by simp_arith
+    rewrite[h₆] at h₄
+    revert heap h₁ h₂ h₃
+    assumption
+
 theorem BalancedTree.heapInsertRootSameOrElem {elem : α} {heap : BalancedTree α o} {lt : α → α → Bool} (h₁ : HeapPredicate heap lt) (h₂ : 0 < o) : (BalancedTree.root (heap.heapInsert lt elem) (by simp_arith) = elem) ∨ (BalancedTree.root (heap.heapInsert lt elem) (by simp_arith) = BalancedTree.root heap h₂) :=
   match o, heap with
   | (n+m+1), .branch v l r _ _ _ =>
