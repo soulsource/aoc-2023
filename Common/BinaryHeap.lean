@@ -16,7 +16,9 @@ inductive BalancedTree (α : Type u) : Nat → Type u
 def BalancedTree.root (tree : BalancedTree α n) (_ : 0 < n) : α := match tree with
 | .branch a _ _ _ _ _ => a
 
-def WellDefinedLt {α : Type u} (lt : α → α → Bool) : Prop := ∀ (a b : α), lt a b → ¬lt b a
+structure WellDefinedLt (lt : α → α → Bool) where
+  not_equal : ∀ (a b : α), lt a b ↔ ¬lt b a
+  transitive : ∀ (a b c : α), lt a b ∧ lt b c → lt a c
 
 def HeapPredicate {α : Type u} {n : Nat} (heap : BalancedTree α n) (lt : α → α → Bool) : Prop :=
   match heap with
@@ -199,22 +201,59 @@ theorem BalancedTree.heapInsertEmptyElem (elem : α) (heap : BalancedTree α o) 
   match o, heap with
   | 0, .leaf => by simp[BalancedTree.heapInsert, root]
 
+private theorem HeapPredicate.notSmallerOrLeaf_transitive (h₁ : WellDefinedLt lt) : lt a b → HeapPredicate.notSmallerOrLeaf lt b h → HeapPredicate.notSmallerOrLeaf lt a h := by
+  have h₂ := h₁.not_equal
+  have h₁ := h₁.transitive
+  unfold notSmallerOrLeaf
+  rename_i n _
+  cases n <;> simp
+  rename_i n
+  simp at h₂
+  intros h₃ h₄
+  rw[←h₂] at *
+  have h₅ := h₁ a b (h.root (by simp_arith))
+  exact h₅ ⟨h₃, h₄⟩
+
 theorem BalancedTree.heapInsertIsHeap {elem : α} {heap : BalancedTree α o} {lt : α → α → Bool} (h₁ : HeapPredicate heap lt) (h₂ : WellDefinedLt lt) : HeapPredicate (heap.heapInsert lt elem) lt :=
   match o, heap with
   | 0, .leaf => by trivial
-  | (n+m+1), .branch v l r _ _ _ =>
+  | (n+m+1), .branch v l r m_le_n _ _ =>
     if h₃ : m < n ∧ Nat.nextPowerOfTwo (n + 1) = n + 1 then by
       unfold BalancedTree.heapInsert
       simp[h₃]
       cases h₄ : (lt elem v) <;> simp[instDecidableEqBool, Bool.decEq]
-      case true => sorry
+      <;> unfold HeapPredicate
+      <;> unfold HeapPredicate at h₁
+      case true =>
+        have h₅ : (HeapPredicate (BalancedTree.heapInsert lt v r) lt) := BalancedTree.heapInsertIsHeap h₁.right.left h₂
+        simp[h₁, h₅]
+        simp[HeapPredicate.notSmallerOrLeaf_transitive h₂ h₄ h₁.right.right.left]
+        have h₇ := h₂.not_equal
+        simp at h₇
+        cases m
+        case zero =>
+          have h₆ := heapInsertEmptyElem v r lt (by simp_arith)
+          simp[HeapPredicate.notSmallerOrLeaf, h₆]
+          rw[←h₇]
+          assumption
+        case succ o =>
+          simp[HeapPredicate.notSmallerOrLeaf]
+          cases heapInsertRootSameOrElem v r lt (by simp_arith)
+          <;> rename_i h₆
+          <;> simp[h₆]
+          <;> rw[←h₇]
+          . assumption
+          apply h₂.transitive (b := v)
+          simp[h₄, h₇]
+          have h₉ := h₁.right.right.right
+          unfold HeapPredicate.notSmallerOrLeaf at h₉
+          simp at h₉
+          assumption
       case false =>
-        unfold HeapPredicate
-        unfold HeapPredicate at h₁
         have h₅ : (HeapPredicate (BalancedTree.heapInsert lt elem r) lt) := BalancedTree.heapInsertIsHeap h₁.right.left h₂
         simp[h₁, h₅]
         unfold HeapPredicate.notSmallerOrLeaf
-        simp_arith[heapInsertRootSameOrElem]
+        simp_arith
         cases h₆: (0 < m : Bool)
         case false =>
           have h₆ : ¬0 < m := of_decide_eq_false h₆
@@ -230,7 +269,6 @@ theorem BalancedTree.heapInsertIsHeap {elem : α} {heap : BalancedTree α o} {lt
           cases m <;> simp at h₈
           case inr.zero => contradiction
           case inr.succ => simp[h₈]
-
     else by
       unfold BalancedTree.heapInsert
       simp[h₃]
