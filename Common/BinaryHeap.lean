@@ -344,6 +344,12 @@ theorem BalancedTree.heapInsertIsHeap {elem : α} {heap : BalancedTree α o} {lt
           case inr.zero => contradiction
           case inr.succ => simp[h₈]
 
+def BinaryHeap.insert {α : Type u} {lt : α → α → Bool} {n : Nat} : α → BinaryHeap α lt n → BinaryHeap α lt (n+1)
+| elem, BinaryHeap.mk tree valid wellDefinedLt =>
+  let valid := tree.heapInsertIsHeap valid wellDefinedLt
+  let tree := tree.heapInsert lt elem
+  {tree, valid, wellDefinedLt}
+
 /--Helper function for BalancedTree.indexOf.-/
 def BalancedTree.indexOfAux {α : Type u} [BEq α] (elem : α) (heap : BalancedTree α o) (currentIndex : Nat) : Option (Fin (o+currentIndex)) :=
   match o, heap with
