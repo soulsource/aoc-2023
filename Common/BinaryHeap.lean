@@ -17,7 +17,7 @@ def CompleteTree.root (tree : CompleteTree α n) (_ : 0 < n) : α := match tree 
 | .branch a _ _ _ _ _ => a
 
 structure WellDefinedLt (lt : α → α → Bool) : Prop where
-  not_equal : ∀ (a b : α), lt a b ↔ ¬lt b a
+  antisymm : ∀ (a b : α), lt a b ↔ ¬lt b a
   transitive : ∀ (a b c : α), lt a b ∧ lt b c → lt a c
 
 def HeapPredicate {α : Type u} {n : Nat} (heap : CompleteTree α n) (lt : α → α → Bool) : Prop :=
@@ -202,7 +202,7 @@ theorem CompleteTree.heapInsertEmptyElem (elem : α) (heap : CompleteTree α o) 
   | 0, .leaf => by simp[CompleteTree.heapInsert, root]
 
 private theorem HeapPredicate.notSmallerOrLeaf_transitive (h₁ : WellDefinedLt lt) : lt a b → HeapPredicate.notSmallerOrLeaf lt b h → HeapPredicate.notSmallerOrLeaf lt a h := by
-  have h₂ := h₁.not_equal
+  have h₂ := h₁.antisymm
   have h₁ := h₁.transitive
   unfold notSmallerOrLeaf
   rename_i n _
@@ -248,7 +248,7 @@ theorem CompleteTree.heapInsertIsHeap {elem : α} {heap : CompleteTree α o} {lt
         have h₅ : (HeapPredicate (CompleteTree.heapInsert lt v r) lt) := CompleteTree.heapInsertIsHeap h₁.right.left h₂
         simp[h₁, h₅]
         simp[HeapPredicate.notSmallerOrLeaf_transitive h₂ h₄ h₁.right.right.left]
-        have h₇ := h₂.not_equal
+        have h₇ := h₂.antisymm
         simp at h₇
         cases m
         case zero =>
@@ -302,7 +302,7 @@ theorem CompleteTree.heapInsertIsHeap {elem : α} {heap : CompleteTree α o} {lt
         have h₅ : (HeapPredicate (CompleteTree.heapInsert lt v l) lt) := CompleteTree.heapInsertIsHeap h₁.left h₂
         simp[h₁, h₅]
         simp[HeapPredicate.notSmallerOrLeaf_transitive h₂ h₄ h₁.right.right.right]
-        have h₇ := h₂.not_equal
+        have h₇ := h₂.antisymm
         simp at h₇
         cases n
         case zero =>
@@ -458,9 +458,9 @@ def CompleteTree.popLast {α : Type u} (heap : CompleteTree α (o+1)) : (α × C
           (res, CompleteTree.branch a left newRight s still_in_range (Or.inl leftIsFull))
 
 /--Removes the element at a given index. Use `CompleteTree.indexOf` to find the respective index.-/
-def CompleteTree.heapRemoveAt {α : Type u} (lt : α → α → Bool) {o : Nat} (index : Fin (o+1)) (heap : CompleteTree α (o+1)) : CompleteTree α o :=
-  -- first remove the last element and remember its value
-  sorry
+--def CompleteTree.heapRemoveAt {α : Type u} (lt : α → α → Bool) {o : Nat} (index : Fin (o+1)) (heap : CompleteTree α (o+1)) : CompleteTree α o :=
+--  -- first remove the last element and remember its value
+--  sorry
 
 -------------------------------------------------------------------------------------------------------
 
