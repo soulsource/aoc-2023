@@ -16,7 +16,7 @@ inductive BalancedTree (α : Type u) : Nat → Type u
 def BalancedTree.root (tree : BalancedTree α n) (_ : 0 < n) : α := match tree with
 | .branch a _ _ _ _ _ => a
 
-structure WellDefinedLt (lt : α → α → Bool) where
+structure WellDefinedLt (lt : α → α → Bool) : Prop where
   not_equal : ∀ (a b : α), lt a b ↔ ¬lt b a
   transitive : ∀ (a b c : α), lt a b ∧ lt b c → lt a c
 
@@ -214,6 +214,26 @@ private theorem HeapPredicate.notSmallerOrLeaf_transitive (h₁ : WellDefinedLt 
   have h₅ := h₁ a b (h.root (by simp_arith))
   exact h₅ ⟨h₃, h₄⟩
 
+private theorem HeapPredicate.seesThroughCast
+  (n m : Nat)
+  (lt : α → α → Bool)
+  (h₁ : n+1+m+1=n+m+1+1)
+  (h₂ : 0<n+1+m+1)
+  (h₃ : 0<n+m+1+1)
+  (heap : BalancedTree α (n+1+m+1)) : HeapPredicate heap lt → HeapPredicate (h₁▸heap) lt := by
+  unfold HeapPredicate
+  intro h₄
+  induction m generalizing n
+  case zero => simp[h₄]
+  case succ o ho =>
+    have h₅ := ho (n+1)
+    have h₆ : n+1+1+o+1 = n+1+(Nat.succ o)+1 := by simp_arith
+    rw[h₆] at h₅
+    have h₆ : n + 1 + o + 1 + 1 = n + (Nat.succ o + 1 + 1) := by simp_arith
+    rewrite[h₆] at h₅
+    revert heap h₁ h₂ h₃
+    assumption
+
 theorem BalancedTree.heapInsertIsHeap {elem : α} {heap : BalancedTree α o} {lt : α → α → Bool} (h₁ : HeapPredicate heap lt) (h₂ : WellDefinedLt lt) : HeapPredicate (heap.heapInsert lt elem) lt :=
   match o, heap with
   | 0, .leaf => by trivial
@@ -236,7 +256,7 @@ theorem BalancedTree.heapInsertIsHeap {elem : α} {heap : BalancedTree α o} {lt
           simp[HeapPredicate.notSmallerOrLeaf, h₆]
           rw[←h₇]
           assumption
-        case succ o =>
+        case succ _ =>
           simp[HeapPredicate.notSmallerOrLeaf]
           cases heapInsertRootSameOrElem v r lt (by simp_arith)
           <;> rename_i h₆
@@ -272,7 +292,57 @@ theorem BalancedTree.heapInsertIsHeap {elem : α} {heap : BalancedTree α o} {lt
     else by
       unfold BalancedTree.heapInsert
       simp[h₃]
-      sorry
+      apply HeapPredicate.seesThroughCast <;> try simp_arith[h₂] --gets rid of annoying cast.
+      -- this should be more or less identical to the other branch, just with l r m n swapped.
+      -- todo: Try to make this shorter...
+      cases h₄ : (lt elem v) <;> simp[instDecidableEqBool, Bool.decEq]
+      <;> unfold HeapPredicate
+      <;> unfold HeapPredicate at h₁
+      case a.true =>
+        have h₅ : (HeapPredicate (BalancedTree.heapInsert lt v l) lt) := BalancedTree.heapInsertIsHeap h₁.left h₂
+        simp[h₁, h₅]
+        simp[HeapPredicate.notSmallerOrLeaf_transitive h₂ h₄ h₁.right.right.right]
+        have h₇ := h₂.not_equal
+        simp at h₇
+        cases n
+        case zero =>
+          have h₆ := heapInsertEmptyElem v l lt (by simp_arith)
+          simp[HeapPredicate.notSmallerOrLeaf, h₆]
+          rw[←h₇]
+          assumption
+        case succ _ =>
+          simp[HeapPredicate.notSmallerOrLeaf]
+          cases heapInsertRootSameOrElem v l lt (by simp_arith)
+          <;> rename_i h₆
+          <;> simp[h₆]
+          <;> rw[←h₇]
+          . assumption
+          apply h₂.transitive (b := v)
+          simp[h₄, h₇]
+          have h₉ := h₁.right.right.left
+          unfold HeapPredicate.notSmallerOrLeaf at h₉
+          simp at h₉
+          assumption
+      case a.false =>
+        have h₅ : (HeapPredicate (BalancedTree.heapInsert lt elem l) lt) := BalancedTree.heapInsertIsHeap h₁.left h₂
+        simp[h₁, h₅]
+        unfold HeapPredicate.notSmallerOrLeaf
+        simp_arith
+        cases h₆: (0 < n : Bool)
+        case false =>
+          have h₆ : ¬0 < n := of_decide_eq_false h₆
+          have h₇ := heapInsertEmptyElem elem l lt h₆
+          simp[*]
+        case true =>
+          simp at h₆
+          have h₇ := heapInsertRootSameOrElem elem l lt h₆
+          cases h₇ <;> simp[*]
+          have h₈ := h₁.right.right.left
+          unfold HeapPredicate.notSmallerOrLeaf at h₈
+          simp at h₈
+          cases n <;> simp at h₈
+          case inr.zero => contradiction
+          case inr.succ => simp[h₈]
 
 /--Helper function for BalancedTree.indexOf.-/
 def BalancedTree.indexOfAux {α : Type u} [BEq α] (elem : α) (heap : BalancedTree α o) (currentIndex : Nat) : Option (Fin (o+currentIndex)) :=
