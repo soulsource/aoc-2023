@@ -16,9 +16,10 @@ inductive CompleteTree (α : Type u) : Nat → Type u
 def CompleteTree.root (tree : CompleteTree α n) (_ : 0 < n) : α := match tree with
 | .branch a _ _ _ _ _ => a
 
-structure WellDefinedLt (lt : α → α → Bool) : Prop where
-  antisymm : ∀ (a b : α), lt a b ↔ ¬lt b a
+structure TotalOrder (lt : α → α → Bool) : Prop where
+  asymmetric : ∀ (a b : α), lt a b → ¬lt b a
   transitive : ∀ (a b c : α), lt a b ∧ lt b c → lt a c
+  connected : ∀ (a b : α), a = b ∨ lt a b ∨ lt b a -- equivalently: a ≠ b → lt a b ∨ lt b a
 
 def HeapPredicate {α : Type u} {n : Nat} (heap : CompleteTree α n) (lt : α → α → Bool) : Prop :=
   match heap with
@@ -32,7 +33,42 @@ def HeapPredicate {α : Type u} {n : Nat} (heap : CompleteTree α n) (lt : α �
 structure BinaryHeap (α : Type u) (lt : α → α → Bool) (n : Nat) where
   tree : CompleteTree α n
   valid : HeapPredicate tree lt
-  wellDefinedLt : WellDefinedLt lt
+  wellDefinedLt : TotalOrder lt
+
+theorem TotalOrder.irreflexive (a : α) {lt : α → α → Bool} (h₁ : TotalOrder lt) : lt a a = false :=
+  if hc : lt a a = true then by
+    simp[h₁.asymmetric a a hc]
+  else by
+    simp[hc]
+
+theorem TotalOrder.not_lt_eq_or_lt {lt : α → α → Bool} (h₁ : TotalOrder lt) (h₂ : ¬lt a b) : a = b ∨ lt b a := by
+  have h₃ := h₁.connected a b
+  simp[h₂] at h₃
+  assumption
+
+theorem TotalOrder.not_lt_trans {lt : α → α → Bool} (h₁ : TotalOrder lt) : ∀ (a b c : α), ¬lt a b ∧ ¬lt b c → ¬lt a c := by
+  intros a b c h₂
+  have h₃ := h₁.asymmetric
+  have h₄ := h₁.transitive
+  have h₆ := not_lt_eq_or_lt h₁ h₂.left
+  have h₇ := not_lt_eq_or_lt h₁ h₂.right
+  cases h₆
+  case inl h₈ =>
+    cases h₇
+    case inl h₉ =>
+      have h₁₀ : a = c := h₈.substr h₉
+      simp[h₁₀]
+      exact (h₁.irreflexive c)
+    case inr h₉ =>
+      apply h₃
+      simp[*]
+  case inr h₈ =>
+    cases h₇
+    case inl h₉ =>
+      apply h₃
+      simp[←h₉,h₈]
+    case inr h₉ =>
+      exact h₃ c a $ h₄ c b a ⟨h₉, h₈⟩
 
 /--Please do not use this for anything meaningful. It's a debug function, with horrible performance.-/
 instance {α : Type u} [ToString α] : ToString (CompleteTree α n) where
@@ -201,18 +237,19 @@ theorem CompleteTree.heapInsertEmptyElem (elem : α) (heap : CompleteTree α o) 
   match o, heap with
   | 0, .leaf => by simp[CompleteTree.heapInsert, root]
 
-private theorem HeapPredicate.notSmallerOrLeaf_transitive (h₁ : WellDefinedLt lt) : lt a b → HeapPredicate.notSmallerOrLeaf lt b h → HeapPredicate.notSmallerOrLeaf lt a h := by
-  have h₂ := h₁.antisymm
-  have h₁ := h₁.transitive
+
+private theorem HeapPredicate.notSmallerOrLeaf_transitive (h₁ : TotalOrder lt) : lt a b → HeapPredicate.notSmallerOrLeaf lt b h → HeapPredicate.notSmallerOrLeaf lt a h := by
+  have h₂ := h₁.asymmetric
+  have h₁ := h₁.not_lt_trans
   unfold notSmallerOrLeaf
   rename_i n _
   cases n <;> simp
   rename_i n
   simp at h₂
   intros h₃ h₄
-  rw[←h₂] at *
-  have h₅ := h₁ a b (h.root (by simp_arith))
-  exact h₅ ⟨h₃, h₄⟩
+  have h₅ := h₂ a b h₃
+  simp at *
+  exact h₁ _ _ _ ⟨h₄, h₅⟩
 
 private theorem HeapPredicate.seesThroughCast
   (n m : Nat)
@@ -234,7 +271,7 @@ private theorem HeapPredicate.seesThroughCast
     revert heap h₁ h₂ h₃
     assumption
 
-theorem CompleteTree.heapInsertIsHeap {elem : α} {heap : CompleteTree α o} {lt : α → α → Bool} (h₁ : HeapPredicate heap lt) (h₂ : WellDefinedLt lt) : HeapPredicate (heap.heapInsert lt elem) lt :=
+theorem CompleteTree.heapInsertIsHeap {elem : α} {heap : CompleteTree α o} {lt : α → α → Bool} (h₁ : HeapPredicate heap lt) (h₂ : TotalOrder lt) : HeapPredicate (heap.heapInsert lt elem) lt :=
   match o, heap with
   | 0, .leaf => by trivial
   | (n+m+1), .branch v l r m_le_n _ _ =>
@@ -248,22 +285,24 @@ theorem CompleteTree.heapInsertIsHeap {elem : α} {heap : CompleteTree α o} {lt
         have h₅ : (HeapPredicate (CompleteTree.heapInsert lt v r) lt) := CompleteTree.heapInsertIsHeap h₁.right.left h₂
         simp[h₁, h₅]
         simp[HeapPredicate.notSmallerOrLeaf_transitive h₂ h₄ h₁.right.right.left]
-        have h₇ := h₂.antisymm
+        have h₇ := h₂.asymmetric
         simp at h₇
         cases m
         case zero =>
           have h₆ := heapInsertEmptyElem v r lt (by simp_arith)
           simp[HeapPredicate.notSmallerOrLeaf, h₆]
-          rw[←h₇]
+          apply h₇
           assumption
         case succ _ =>
           simp[HeapPredicate.notSmallerOrLeaf]
           cases heapInsertRootSameOrElem v r lt (by simp_arith)
           <;> rename_i h₆
           <;> simp[h₆]
-          <;> rw[←h₇]
+          apply h₇
           . assumption
-          apply h₂.transitive (b := v)
+          have h₈ := h₂.not_lt_trans
+          simp at h₈
+          apply h₈ _ v elem
           simp[h₄, h₇]
           have h₉ := h₁.right.right.right
           unfold HeapPredicate.notSmallerOrLeaf at h₉
@@ -302,22 +341,24 @@ theorem CompleteTree.heapInsertIsHeap {elem : α} {heap : CompleteTree α o} {lt
         have h₅ : (HeapPredicate (CompleteTree.heapInsert lt v l) lt) := CompleteTree.heapInsertIsHeap h₁.left h₂
         simp[h₁, h₅]
         simp[HeapPredicate.notSmallerOrLeaf_transitive h₂ h₄ h₁.right.right.right]
-        have h₇ := h₂.antisymm
+        have h₇ := h₂.asymmetric
         simp at h₇
         cases n
         case zero =>
           have h₆ := heapInsertEmptyElem v l lt (by simp_arith)
           simp[HeapPredicate.notSmallerOrLeaf, h₆]
-          rw[←h₇]
+          apply h₇
           assumption
         case succ _ =>
           simp[HeapPredicate.notSmallerOrLeaf]
           cases heapInsertRootSameOrElem v l lt (by simp_arith)
           <;> rename_i h₆
           <;> simp[h₆]
-          <;> rw[←h₇]
+          apply h₇
           . assumption
-          apply h₂.transitive (b := v)
+          have h₈ := h₂.not_lt_trans
+          simp at h₈
+          apply h₈ _ v elem
           simp[h₄, h₇]
           have h₉ := h₁.right.right.left
           unfold HeapPredicate.notSmallerOrLeaf at h₉
