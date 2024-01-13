@@ -38,7 +38,7 @@ def HeapPredicate {α : Type u} {n : Nat} (heap : CompleteTree α n) (le : α �
 structure BinaryHeap (α : Type u) (le : α → α → Bool) (n : Nat) where
   tree : CompleteTree α n
   valid : HeapPredicate tree le
-  wellDefinedLt : transitive_le le ∧ total_le le
+  wellDefinedLe : transitive_le le ∧ total_le le
 
 /--Please do not use this for anything meaningful. It's a debug function, with horrible performance.-/
 instance {α : Type u} [ToString α] : ToString (CompleteTree α n) where
@@ -321,10 +321,10 @@ theorem CompleteTree.heapInsertIsHeap {elem : α} {heap : CompleteTree α o} {le
           exact h₁.right.right.left
 
 def BinaryHeap.insert {α : Type u} {lt : α → α → Bool} {n : Nat} : α → BinaryHeap α lt n → BinaryHeap α lt (n+1)
-| elem, BinaryHeap.mk tree valid wellDefinedLt =>
-  let valid := tree.heapInsertIsHeap valid wellDefinedLt.left wellDefinedLt.right
+| elem, BinaryHeap.mk tree valid wellDefinedLe =>
+  let valid := tree.heapInsertIsHeap valid wellDefinedLe.left wellDefinedLe.right
   let tree := tree.heapInsert lt elem
-  {tree, valid, wellDefinedLt}
+  {tree, valid, wellDefinedLe}
 
 /--Helper function for CompleteTree.indexOf.-/
 def CompleteTree.indexOfAux {α : Type u} [BEq α] (elem : α) (heap : CompleteTree α o) (currentIndex : Nat) : Option (Fin (o+currentIndex)) :=
