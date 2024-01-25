@@ -327,30 +327,25 @@ def BinaryHeap.insert {α : Type u} {lt : α → α → Bool} {n : Nat} : α →
   {tree, valid, wellDefinedLe}
 
 /--Helper function for CompleteTree.indexOf.-/
-def CompleteTree.indexOfAux {α : Type u} [BEq α] (elem : α) (heap : CompleteTree α o) (currentIndex : Nat) : Option (Fin (o+currentIndex)) :=
+def CompleteTree.indexOfAux {α : Type u} (heap : CompleteTree α o) (pred : α → Bool) (currentIndex : Nat) : Option (Fin (o+currentIndex)) :=
   match o, heap with
   | 0, .leaf => none
   | (n+m+1), .branch a left right _ _ _ =>
-    if a == elem then
+    if pred a then
       let result := Fin.ofNat' currentIndex (by simp_arith)
       some result
     else
-      let found_left := left.indexOfAux elem (currentIndex + 1)
+      let found_left := left.indexOfAux pred (currentIndex + 1)
       let found_left : Option (Fin (n+m+1+currentIndex)) := found_left.map λ a ↦ Fin.ofNat' a (by simp_arith)
       let found_right :=
         found_left
         <|>
-        (right.indexOfAux elem (currentIndex + n + 1)).map ((λ a ↦ Fin.ofNat' a (by simp_arith)) : _ → Fin (n+m+1+currentIndex))
+        (right.indexOfAux pred (currentIndex + n + 1)).map ((λ a ↦ Fin.ofNat' a (by simp_arith)) : _ → Fin (n+m+1+currentIndex))
       found_right
 
 /--Finds the first occurance of a given element in the heap and returns its index.-/
-def CompleteTree.indexOf {α : Type u} [BEq α] (elem : α) (heap : CompleteTree α o) : Option (Fin o) :=
-  indexOfAux elem heap 0
-
-private inductive Direction
-| left
-| right
-deriving Repr
+def CompleteTree.indexOf {α : Type u} (heap : CompleteTree α o) (pred : α → Bool) : Option (Fin o) :=
+  indexOfAux heap pred 0
 
 theorem two_n_not_zero_n_not_zero (n : Nat) (p : ¬2*n = 0) : (¬n = 0) := by
   cases n
@@ -386,21 +381,17 @@ def CompleteTree.popLast {α : Type u} (heap : CompleteTree α (o+1)) : (α × C
         have : m > 0 := by
           cases m_gt_0_or_rightIsFull
           case inl => assumption
-          case inr h => simp_arith [h] at r
-                        -- p, r, m_le_n combined
-                        -- r and m_le_n yield m == n and p again done
-                        simp_arith
-                        --clear left right heap lt a h rightIsFull
-                        have n_eq_m : n = m := Nat.le_antisymm r m_le_n
-                        rewrite[n_eq_m] at p
-                        simp_arith at p
-                        apply Nat.zero_lt_of_ne_zero
-                        simp_arith[p]
-                        apply (two_n_not_zero_n_not_zero m)
-                        intro g
-                        have g := Eq.symm g
-                        revert g
-                        assumption
+          case inr h =>
+            simp_arith [h] at r
+            cases n
+            case zero =>
+              simp[Nat.zero_lt_of_ne_zero] at p
+              exact Nat.zero_lt_of_ne_zero (Ne.symm p)
+            case succ q =>
+              cases m
+              . have := Nat.not_succ_le_zero q
+                contradiction
+              . simp_arith
         match h₂ : m, right with
         | (l+1), right =>
           let (res, (newRight : CompleteTree α l)) := right.popLast
@@ -433,6 +424,14 @@ def CompleteTree.popLast {α : Type u} (heap : CompleteTree α (o+1)) : (α × C
 
           (res, CompleteTree.branch a left newRight s still_in_range (Or.inl leftIsFull))
 
+theorem CompleteTree.popLastIsHeap {heap : CompleteTree α (o+1)} {le : α → α → Bool} (h₁ : HeapPredicate heap le) (h₂ : transitive_le le) (h₃ : total_le le) : HeapPredicate (heap.popLast.snd) lt :=
+  match o, heap with
+  | (n+m), .branch v l r _ _ _ =>
+    if h₄ : 0 = (n+m) then by
+      unfold popLast
+    else
+      sorry
+
 /--Removes the element at a given index. Use `CompleteTree.indexOf` to find the respective index.-/
 --def CompleteTree.heapRemoveAt {α : Type u} (lt : α → α → Bool) {o : Nat} (index : Fin (o+1)) (heap : CompleteTree α (o+1)) : CompleteTree α o :=
 --  -- first remove the last element and remember its value
@@ -461,4 +460,4 @@ private def TestHeap :=
 
 #eval TestHeap
 #eval TestHeap.popLast
-#eval TestHeap.indexOf 71
+#eval TestHeap.indexOf (71 = ·)
