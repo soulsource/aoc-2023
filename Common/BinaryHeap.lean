@@ -378,7 +378,7 @@ def CompleteTree.popLast {α : Type u} (heap : CompleteTree α (o+1)) : (α × C
           (res, q▸CompleteTree.branch a newLeft right s l_lt_2_m_succ (Or.inr rightIsFull))
       else
         --remove right
-        have : m > 0 := by
+        have m_gt_0 : m > 0 := by
           cases m_gt_0_or_rightIsFull
           case inl => assumption
           case inr h =>
@@ -392,37 +392,39 @@ def CompleteTree.popLast {α : Type u} (heap : CompleteTree α (o+1)) : (α × C
               . have := Nat.not_succ_le_zero q
                 contradiction
               . simp_arith
-        match h₂ : m, right with
-        | (l+1), right =>
-          let (res, (newRight : CompleteTree α l)) := right.popLast
-          have s : l ≤ n := by have x := (Nat.add_le_add_left (Nat.zero_le 1) l)
-                               have x := Nat.le_trans x m_le_n
-                               assumption
-          have leftIsFull : (n+1).isPowerOfTwo := by
-            rewrite[Decidable.not_and_iff_or_not] at r
-            cases r
-            case inl h₁ => rewrite[Nat.not_lt_eq] at h₁
-                           have h₂ := Nat.le_antisymm h₁ m_le_n
-                           rewrite[←h₂] at subtree_complete
-                           simp at subtree_complete
-                           assumption
-            case inr h₁ => simp_arith[←Nat.power_of_two_iff_next_power_eq] at h₁
-                           rewrite[h₂] at h₁
-                           simp[h₁] at subtree_complete
-                           assumption
-          have still_in_range : n < 2*(l+1) := by
-            rewrite[Decidable.not_and_iff_or_not (l+1<n) rightIsFull] at r
-            cases r with
-            | inl h₁ => simp_arith at h₁
-                        have h₃ := Nat.le_antisymm m_le_n h₁
-                        subst n
-                        have h₄ := Nat.mul_lt_mul_of_pos_right (by decide : 1 < 2) this
-                        simp at h₄
-                        assumption
-            | inr h₁ => simp[←Nat.power_of_two_iff_next_power_eq, h₂] at h₁
-                        apply power_of_two_mul_two_le <;> assumption
-
-          (res, CompleteTree.branch a left newRight s still_in_range (Or.inl leftIsFull))
+        let l := m.pred
+        have h₂ : l.succ = m := (Nat.succ_pred $ Nat.not_eq_zero_of_lt (Nat.gt_of_not_le $ Nat.not_le_of_gt m_gt_0))
+        -- needed for termination
+        have : Nat.pred m < n + m := by rw[←h₂]; simp_arith
+        let (res, (newRight : CompleteTree α l)) := (h₂.symm▸right).popLast
+        have s : l ≤ n := Nat.le_trans ((Nat.add_zero l).subst (motive := λ x ↦ x ≤ m) $ h₂.subst (Nat.add_le_add_left (Nat.zero_le 1) l)) (h₂.substr m_le_n)
+        have leftIsFull : (n+1).isPowerOfTwo := by
+          rewrite[Decidable.not_and_iff_or_not] at r
+          cases r
+          case inl h₁ => rewrite[Nat.not_lt_eq] at h₁
+                         have h₂ := Nat.le_antisymm h₁ m_le_n
+                         rewrite[←h₂] at subtree_complete
+                         simp at subtree_complete
+                         assumption
+          case inr h₁ => simp_arith[←Nat.power_of_two_iff_next_power_eq] at h₁
+                         simp[h₁] at subtree_complete
+                         assumption
+        have still_in_range : n < 2*(l+1) := by
+          rewrite[Decidable.not_and_iff_or_not (m<n) rightIsFull] at r
+          rw[←Nat.add_one] at h₂
+          cases r with
+          | inl h₁ => simp_arith at h₁
+                      have h₃ := Nat.le_antisymm m_le_n h₁
+                      subst n
+                      have h₄ := Nat.mul_lt_mul_of_pos_right (by decide : 1 < 2) m_gt_0
+                      simp at h₄
+                      rw[h₂]
+                      assumption
+          | inr h₁ => simp[←Nat.power_of_two_iff_next_power_eq, h₂] at h₁
+                      rw[h₂]
+                      apply power_of_two_mul_two_le <;> assumption
+        (res, h₂▸CompleteTree.branch a left newRight s still_in_range (Or.inl leftIsFull))
+termination_by CompleteTree.popLast heap => o
 
 theorem CompleteTree.popLastIsHeap {heap : CompleteTree α (o+1)} {le : α → α → Bool} (h₁ : HeapPredicate heap le) (h₂ : transitive_le le) (h₃ : total_le le) : HeapPredicate (heap.popLast.snd) lt :=
   match o, heap with
