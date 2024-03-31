@@ -426,11 +426,27 @@ def CompleteTree.popLast {α : Type u} (heap : CompleteTree α (o+1)) : (α × C
         (res, h₂▸CompleteTree.branch a left newRight s still_in_range (Or.inl leftIsFull))
 termination_by CompleteTree.popLast heap => o
 
+theorem CompleteTree.castZeroHeap (n m : Nat) (heap : CompleteTree α 0) (h₁ : 0=n+m) {le : α → α → Bool} : HeapPredicate (h₁ ▸ heap) le := by
+  have h₂ : heap = (CompleteTree.empty : CompleteTree α 0) := by
+    simp[empty]
+    match heap with
+    | .leaf => trivial
+  have h₂ : HeapPredicate heap le := by simp[h₂, empty, emptyIsHeap]
+  cases m
+  case succ => contradiction
+  case zero =>
+    cases n
+    case succ => contradiction
+    case zero =>
+      simp[h₁, h₂]
+
+
 theorem CompleteTree.popLastIsHeap {heap : CompleteTree α (o+1)} {le : α → α → Bool} (h₁ : HeapPredicate heap le) (h₂ : transitive_le le) (h₃ : total_le le) : HeapPredicate (heap.popLast.snd) lt :=
   match o, heap with
   | (n+m), .branch v l r _ _ _ =>
     if h₄ : 0 = (n+m) then by
       unfold popLast
+      simp[h₄, castZeroHeap]
     else
       sorry
 
