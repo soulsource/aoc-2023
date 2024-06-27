@@ -74,7 +74,7 @@ def CompleteTree.length : CompleteTree α n → Nat := λ_ ↦ n
 /--Creates an empty CompleteTree. Needs the heap predicate as parameter.-/
 abbrev CompleteTree.empty {α : Type u} := CompleteTree.leaf (α := α)
 
-theorem CompleteTree.emptyIsHeap {α : Type u} (lt : α → α → Bool) : HeapPredicate CompleteTree.empty lt := by trivial
+theorem CompleteTree.emptyIsHeap {α : Type u} (le : α → α → Bool) : HeapPredicate CompleteTree.empty le := by trivial
 
 theorem power_of_two_mul_two_lt {n m : Nat} (h₁ : m.isPowerOfTwo) (h₂ : n < 2*m) (h₃ : ¬(n+1).isPowerOfTwo) : n+1 < 2*m :=
   if h₄ : n+1 > 2*m then by
@@ -366,7 +366,7 @@ def CompleteTree.popLast {α : Type u} (heap : CompleteTree α (o+1)) : (α × C
         match n, left with
         | (l+1), left =>
           let (res, (newLeft : CompleteTree α l)) := left.popLast
-          have q : l + m + 1 = l + 1 +m := by simp_arith
+          have q : l + m + 1 = l + 1 + m := Nat.add_right_comm l m 1
           have s : m ≤ l := match r with
           | .intro a _ => by apply Nat.le_of_lt_succ
                              simp[a]
@@ -440,15 +440,67 @@ theorem CompleteTree.castZeroHeap (n m : Nat) (heap : CompleteTree α 0) (h₁ :
     case zero =>
       simp[h₁, h₂]
 
+private theorem HeapPredicate.seesThroughCast2
+  (n m : Nat)
+  (lt : α → α → Bool)
+  (h₁ : n+m+1=n+1+m)
+  (h₂ : 0<n+1+m)
+  (h₃ : 0<n+m+1)
+  (heap : CompleteTree α (n+m+1)) : HeapPredicate heap lt → HeapPredicate (h₁▸heap) lt := by
+  unfold HeapPredicate
+  intro h₄
+  induction m generalizing n
+  case zero => simp[h₄]
+  case succ o ho =>
+    have h₅ := ho (n+1)
+    have h₆ : n+1+o+1 = n+(Nat.succ o)+1 := by simp_arith
+    rw[h₆] at h₅
+    have h₆ : n + 1 + 1 + o = n + 1 + Nat.succ o := by simp_arith
+    rewrite[h₆] at h₅
+    revert heap h₁ h₂ h₃
+    assumption
 
-theorem CompleteTree.popLastIsHeap {heap : CompleteTree α (o+1)} {le : α → α → Bool} (h₁ : HeapPredicate heap le) (h₂ : transitive_le le) (h₃ : total_le le) : HeapPredicate (heap.popLast.snd) lt :=
+-- If there is only one element left, the result is a leaf.
+theorem CompleteTree.popLastLeaf (heap : CompleteTree α 1) : heap.popLast.snd = CompleteTree.leaf := by
+  let l := heap.popLast.snd
+  have h₁ : l = CompleteTree.leaf := match l with
+    | .leaf => rfl
+  exact h₁
+
+theorem CompleteTree.popLastLeavesRoot (heap : CompleteTree α (n+1+1)) : heap.root (by simp_arith) = heap.popLast.snd.root (by simp_arith) := by
+  sorry
+
+theorem CompleteTree.popLastIsHeap {heap : CompleteTree α (o+1)} {le : α → α → Bool} (h₁ : HeapPredicate heap le) (h₂ : transitive_le le) (h₃ : total_le le) : HeapPredicate (heap.popLast.snd) le :=
   match o, heap with
   | (n+m), .branch v l r _ _ _ =>
     if h₄ : 0 = (n+m) then by
       unfold popLast
       simp[h₄, castZeroHeap]
-    else
-      sorry
+    else by
+      unfold popLast
+      simp[h₄]
+      exact
+        if h₅ : (m<n ∧ Nat.nextPowerOfTwo (m+1) = m+1) then by
+          simp[h₅]
+          cases n
+          case zero =>
+            exact absurd h₅.left $ Nat.not_lt_zero m
+          case succ ll h₆ h₇ h₈  =>
+            simp
+            apply HeapPredicate.seesThroughCast2 <;> try simp_arith
+            cases ll
+            case a.zero => -- if ll is zero, then (popLast l).snd is a leaf.
+              have h₆ : l.popLast.snd = .leaf := popLastLeaf l
+              rw[h₆]
+              unfold HeapPredicate at *
+              have h₇ : HeapPredicate .leaf le := by trivial
+              have h₈ : HeapPredicate.leOrLeaf le v .leaf := by trivial
+              exact ⟨h₇,h₁.right.left, h₈, h₁.right.right.right⟩
+            case a.succ => -- if ll is not zero, then the root element before and after popLast is the same.
+              sorry
+        else by
+          simp[h₅]
+          sorry
 
 /--Removes the element at a given index. Use `CompleteTree.indexOf` to find the respective index.-/
 --def CompleteTree.heapRemoveAt {α : Type u} (lt : α → α → Bool) {o : Nat} (index : Fin (o+1)) (heap : CompleteTree α (o+1)) : CompleteTree α o :=
