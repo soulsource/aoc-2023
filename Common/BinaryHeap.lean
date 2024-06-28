@@ -511,6 +511,7 @@ theorem CompleteTree.popLastLeavesRoot (heap : CompleteTree α (n+1)) (h₁ : n 
           simp
 
 
+set_option linter.unusedVariables false in -- Lean 4.2 thinks h₁ is unused. It very much is not unused.
 theorem CompleteTree.popLastIsHeap {heap : CompleteTree α (o+1)} {le : α → α → Bool} (h₁ : HeapPredicate heap le) (h₂ : transitive_le le) (h₃ : total_le le) : HeapPredicate (heap.popLast.snd) le :=
   match o, heap with
   | (n+m), .branch v l r _ _ _ =>
@@ -542,11 +543,22 @@ theorem CompleteTree.popLastIsHeap {heap : CompleteTree α (o+1)} {le : α → �
               simp[h₁.right.left, h₁.right.right.right, popLastIsHeap h₁.left h₂ h₃]
               unfold HeapPredicate.leOrLeaf
               simp
-              rw[←(popLastLeavesRoot l (Nat.zero_lt_of_ne_zero $ Nat.succ_ne_zero nn))]
+              rw[←popLastLeavesRoot]
               exact h₁.right.right.left
         else by
           simp[h₅]
-          sorry
+          cases m
+          case zero =>
+            simp_arith at h₄ -- n ≠ 0
+            simp_arith[Ne.symm h₄] at h₅ -- the second term in h₅ is decidable and True. What remains is ¬(0 < n), or n = 0
+          case succ mm h₆ h₇ h₈ =>
+            simp
+            unfold HeapPredicate at *
+            simp[h₁, popLastIsHeap h₁.right.left h₂ h₃]
+            unfold HeapPredicate.leOrLeaf
+            cases mm <;> simp
+            rw[←popLastLeavesRoot]
+            exact h₁.right.right.right
 
 /--Removes the element at a given index. Use `CompleteTree.indexOf` to find the respective index.-/
 --def CompleteTree.heapRemoveAt {α : Type u} (lt : α → α → Bool) {o : Nat} (index : Fin (o+1)) (heap : CompleteTree α (o+1)) : CompleteTree α o :=
