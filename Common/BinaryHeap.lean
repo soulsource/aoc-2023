@@ -173,18 +173,34 @@ private def CompleteTree.heapInsert (le : α → α → Bool) (elem : α) (heap 
 
 private theorem CompleteTree.rootSeesThroughCast
   (n m : Nat)
-  (h₁ : n+1+m+1=n+m+1+1)
-  (h₂ : 0<n+1+m+1)
-  (h₃ : 0<n+m+1+1)
-  (heap : CompleteTree α (n+1+m+1)) : (h₁▸heap).root h₃ = heap.root h₂ := by
+  (h₁ : n + 1 + m = n + m + 1)
+  (h₂ : 0 < n + 1 + m)
+  (h₃ : 0 < n + m + 1)
+  (heap : CompleteTree α (n+1+m)) : (h₁▸heap).root h₃ = heap.root h₂ := by
   induction m generalizing n
   case zero => simp
   case succ o ho =>
     have h₄ := ho (n+1)
-    have h₅ : n+1+1+o+1 = n+1+(Nat.succ o)+1 := by simp_arith
-    rewrite[h₅] at h₄
-    have h₆ : n + 1 + o + 1 + 1 = n + (Nat.succ o + 1 + 1) := by simp_arith
-    rewrite[h₆] at h₄
+    have h₅ : n + 1 + 1 + o = n + 1 + (Nat.succ o) := by simp_arith
+    have h₆ : n + 1 + o + 1 = n + (Nat.succ o + 1) := by simp_arith
+    rewrite[h₅, h₆] at h₄
+    revert heap h₁ h₂ h₃
+    assumption
+
+--- Same as rootSeesThroughCast, but in the other direction.
+private theorem CompleteTree.rootSeesThroughCast2
+  (n m : Nat)
+  (h₁ : n + m + 1 = n + 1 + m)
+  (h₂ : 0 < n + m + 1)
+  (h₃ : 0 < n + 1 + m)
+  (heap : CompleteTree α (n+m+1)) : (h₁▸heap).root h₃ = heap.root h₂ := by
+  induction m generalizing n
+  case zero => simp
+  case succ mm mh =>
+    have h₄ := mh (n+1)
+    have h₅ : n + 1 + mm + 1 = n + Nat.succ mm + 1 := by simp_arith
+    have h₆ : n + 1 + 1 + mm = n + 1 + Nat.succ mm := by simp_arith
+    rw[h₅, h₆] at h₄
     revert heap h₁ h₂ h₃
     assumption
 
@@ -198,7 +214,7 @@ theorem CompleteTree.heapInsertRootSameOrElem (elem : α) (heap : CompleteTree �
     else by
       unfold CompleteTree.heapInsert
       simp[h]
-      rw[rootSeesThroughCast n m (by simp_arith) (by simp_arith) (by simp_arith)]
+      rw[rootSeesThroughCast n (m+1) (by simp_arith) (by simp_arith) (by simp_arith)]
       cases (lt elem v)
       <;> simp[instDecidableEqBool, Bool.decEq, CompleteTree.root]
 
@@ -467,8 +483,33 @@ theorem CompleteTree.popLastLeaf (heap : CompleteTree α 1) : heap.popLast.snd =
     | .leaf => rfl
   exact h₁
 
-theorem CompleteTree.popLastLeavesRoot (heap : CompleteTree α (n+1+1)) : heap.root (by simp_arith) = heap.popLast.snd.root (by simp_arith) := by
-  sorry
+theorem CompleteTree.popLastLeavesRoot (heap : CompleteTree α (n+1)) (h₁ : n > 0) : heap.root (Nat.zero_lt_of_ne_zero $ Nat.succ_ne_zero n) = heap.popLast.snd.root (h₁) :=
+  match h₂ : n, heap with
+  | (o+p), .branch v l r _ _ _ => by
+    have h₃ : (0 ≠ o + p) := Ne.symm $ Nat.not_eq_zero_of_lt h₁
+    unfold popLast
+    simp[h₃]
+    exact
+      if h₄ : p < o ∧ Nat.nextPowerOfTwo (p + 1) = p + 1 then by
+        simp[h₄]
+        cases o
+        case zero => exact absurd h₄.left $ Nat.not_lt_zero p
+        case succ oo _ _ _ =>
+          simp -- redundant, but makes goal easier to read
+          rw[rootSeesThroughCast2 oo p _ (by simp_arith) _]
+          unfold root
+          simp
+      else by
+        simp[h₄]
+        cases p
+        case zero =>
+          simp_arith at h₁ -- basically o ≠ 0
+          simp_arith[h₁] at h₄ -- the second term in h₄ is decidable and True. What remains is ¬(0 < o), or o = 0
+        case succ pp hp =>
+          simp_arith
+          unfold root
+          simp
+
 
 theorem CompleteTree.popLastIsHeap {heap : CompleteTree α (o+1)} {le : α → α → Bool} (h₁ : HeapPredicate heap le) (h₂ : transitive_le le) (h₃ : total_le le) : HeapPredicate (heap.popLast.snd) le :=
   match o, heap with
@@ -496,8 +537,13 @@ theorem CompleteTree.popLastIsHeap {heap : CompleteTree α (o+1)} {le : α → �
               have h₇ : HeapPredicate .leaf le := by trivial
               have h₈ : HeapPredicate.leOrLeaf le v .leaf := by trivial
               exact ⟨h₇,h₁.right.left, h₈, h₁.right.right.right⟩
-            case a.succ => -- if ll is not zero, then the root element before and after popLast is the same.
-              sorry
+            case a.succ nn => -- if ll is not zero, then the root element before and after popLast is the same.
+              unfold HeapPredicate at *
+              simp[h₁.right.left, h₁.right.right.right, popLastIsHeap h₁.left h₂ h₃]
+              unfold HeapPredicate.leOrLeaf
+              simp
+              rw[←(popLastLeavesRoot l (Nat.zero_lt_of_ne_zero $ Nat.succ_ne_zero nn))]
+              exact h₁.right.right.left
         else by
           simp[h₅]
           sorry
