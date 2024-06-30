@@ -560,10 +560,64 @@ theorem CompleteTree.popLastIsHeap {heap : CompleteTree α (o+1)} {le : α → �
             rw[←popLastLeavesRoot]
             exact h₁.right.right.right
 
+def BinaryHeap.popLast {α : Type u} {le : α → α → Bool} {n : Nat} : (BinaryHeap α le (n+1)) → (α × BinaryHeap α le n)
+| {tree, valid, wellDefinedLe} =>
+  let result := tree.popLast
+  let resultValid := CompleteTree.popLastIsHeap valid wellDefinedLe.left wellDefinedLe.right
+  (result.fst, { tree := result.snd, valid := resultValid, wellDefinedLe})
+
+/--
+  Helper for CompleteTree.heapRemoveAt.
+  Removes the element at index, and instead inserts the given value.
+  Returns the element at index, and the resulting tree.
+  -/
+def CompleteTree.replaceElementAt {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin n) (value : α) (heap : CompleteTree α n) (h₁ : n > 0) : α × CompleteTree α n :=
+  if h₂ : index = ⟨0,h₁⟩ then
+    match h₃ : n, heap with
+    | (o+p+1), .branch v l r h₄ h₅ h₆ =>
+      match l, r with
+      | .leaf, .leaf => sorry
+      | .branch lv ll lr _ _ _, .leaf => sorry
+      | .branch lv ll lr _ _ _, .branch rv rl rr _ _ _ => sorry
+      | .leaf, .branch _ _ _ _ _ _ => by contradiction
+  else
+    match h₃ : n, heap with
+    | (o+p+1), .branch v l r h₄ h₅ h₆ =>
+      let (v, value) := if le v value then (v, value) else (value, v)
+      if h₇ : index ≤ o then
+        have h₈ : Nat.pred index.val < o := Nat.lt_of_lt_of_le (Nat.pred_lt $ Fin.val_ne_of_ne h₂) h₇
+        let index_in_left : Fin o := ⟨index.val.pred, h₈⟩
+        have h₉ : 0 < o := Nat.zero_lt_of_lt h₈
+        let result := replaceElementAt le index_in_left value l h₉
+        (result.fst, .branch v result.snd r h₄ h₅ h₆)
+      else
+        have h₈ : index.val - (o + 1) < p :=
+          -- tactic rewrite failed, result is not type correct.
+          have h₉ : index.val < p + o + 1 := index.isLt
+            |> (Nat.add_assoc o p 1).subst
+            |> (Nat.add_comm p 1).subst (motive := λx ↦ index.val < o + x)
+            |> (Nat.add_assoc o 1 p).symm.subst
+            |> (Nat.add_comm (o+1) p).subst
+          Nat.sub_lt_of_lt_add h₉ $ (Nat.not_le_eq index.val o).mp h₇
+        let index_in_right : Fin p := ⟨index.val - o - 1, h₈⟩
+        have h₉ : 0 < p := Nat.zero_lt_of_lt h₈
+        let result := replaceElementAt le index_in_right value r h₉
+        (result.fst, .branch v l result.snd h₄ h₅ h₆)
+
 /--Removes the element at a given index. Use `CompleteTree.indexOf` to find the respective index.-/
---def CompleteTree.heapRemoveAt {α : Type u} (lt : α → α → Bool) {o : Nat} (index : Fin (o+1)) (heap : CompleteTree α (o+1)) : CompleteTree α o :=
---  -- first remove the last element and remember its value
---  sorry
+def CompleteTree.heapRemoveAt {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin (n+1)) (heap : CompleteTree α (n+1)) : α × CompleteTree α n :=
+  --Since we cannot even temporarily break the completeness property, we go with the
+  --version from Wikipedia: We first remove the last element, and then update values in the tree
+  let l := heap.popLast
+  if p : index = n then
+    l
+  else
+    have n_gt_zero : n > 0 := by
+      cases n
+      case succ nn => exact Nat.zero_lt_of_ne_zero $ Nat.succ_ne_zero nn
+      case zero => exact absurd ((Nat.le_zero_eq index.val).mp (Nat.le_of_lt_succ ((Nat.zero_add 1).subst index.isLt))) p
+    let index : Fin n := ⟨index, Nat.lt_of_le_of_ne (Nat.le_of_lt_succ index.isLt) p⟩
+    replaceElementAt le index l.fst l.snd n_gt_zero
 
 -------------------------------------------------------------------------------------------------------
 

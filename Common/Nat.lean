@@ -157,3 +157,12 @@ theorem Nat.pred_even_odd {n : Nat} (h₁ : Nat.isEven n) (h₂ : n > 0) : Nat.i
   | zero => contradiction
   | succ o => simp[Nat.isEven] at h₁
               assumption
+
+theorem Nat.sub_lt_of_lt_add {a b c : Nat} (h₁ : a < c + b) (h₂ : b ≤ a) : a - b < c :=
+  have h₃ : a + 1 ≤ c + b := Nat.succ_le_of_lt h₁
+  have h₄ := Nat.sub_le_of_le_add h₃
+  have h₅ : 1 + a - b ≤ c := (Nat.add_comm a 1).subst (motive := λx ↦ x - b ≤ c) h₄
+  have h₆ := Nat.add_sub_assoc h₂ 1
+  have h₇ : 1 + (a-b) ≤ c := h₆.subst (motive := λx ↦ x ≤ c) h₅
+  have h₈ : (a-b) + 1 ≤ c := (Nat.add_comm 1 (a-b)).subst (motive := λx ↦ x ≤ c) h₇
+  Nat.lt_of_succ_le h₈
