@@ -363,6 +363,24 @@ def CompleteTree.indexOfAux {α : Type u} (heap : CompleteTree α o) (pred : α 
 def CompleteTree.indexOf {α : Type u} (heap : CompleteTree α o) (pred : α → Bool) : Option (Fin o) :=
   indexOfAux heap pred 0
 
+def CompleteTree.get {α : Type u} {n : Nat} (index : Fin (n+1)) (heap : CompleteTree α (n+1)) : α :=
+  match h₁ : index, h₂ : n, heap with
+  | 0, (_+_), .branch v _ _ _ _ _ => v
+  | ⟨j+1,h₃⟩, (o+p), .branch _ l r _ _ _ =>
+    if h₄ : j < o then
+      match o with
+      | (oo+1) => get ⟨j, h₄⟩ l
+    else
+      have : p ≠ 0 :=
+        have h₅ : o < n := Nat.lt_of_le_of_lt (Nat.ge_of_not_lt h₄) (Nat.lt_of_succ_lt_succ h₃)
+        have h₆ : n - o = p := Nat.sub_eq_of_eq_add $ (Nat.add_comm o p).subst h₂
+        h₆.symm.substr $ Nat.sub_ne_zero_of_lt h₅
+      have h₅ : j-o < p := sorry
+      have : j-o < index.val := sorry
+      match p with
+      | (pp + 1) => get ⟨j - o, h₅⟩ r
+  termination_by _ => index.val
+
 theorem two_n_not_zero_n_not_zero (n : Nat) (p : ¬2*n = 0) : (¬n = 0) := by
   cases n
   case zero => contradiction
