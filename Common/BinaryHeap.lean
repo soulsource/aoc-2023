@@ -573,36 +573,54 @@ def BinaryHeap.popLast {α : Type u} {le : α → α → Bool} {n : Nat} : (Bina
   -/
 def CompleteTree.replaceElementAt {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin n) (value : α) (heap : CompleteTree α n) (h₁ : n > 0) : α × CompleteTree α n :=
   if h₂ : index = ⟨0,h₁⟩ then
-    match h₃ : n, heap with
-    | (o+p+1), .branch v l r h₄ h₅ h₆ =>
-      match l, r with
-      | .leaf, .leaf => sorry
-      | .branch lv ll lr _ _ _, .leaf => sorry
-      | .branch lv ll lr _ _ _, .branch rv rl rr _ _ _ => sorry
-      | .leaf, .branch _ _ _ _ _ _ => by contradiction
-  else
-    match h₃ : n, heap with
-    | (o+p+1), .branch v l r h₄ h₅ h₆ =>
-      let (v, value) := if le v value then (v, value) else (value, v)
-      if h₇ : index ≤ o then
-        have h₈ : Nat.pred index.val < o := Nat.lt_of_lt_of_le (Nat.pred_lt $ Fin.val_ne_of_ne h₂) h₇
-        let index_in_left : Fin o := ⟨index.val.pred, h₈⟩
-        have h₉ : 0 < o := Nat.zero_lt_of_lt h₈
-        let result := replaceElementAt le index_in_left value l h₉
-        (result.fst, .branch v result.snd r h₄ h₅ h₆)
+    match _h : n, heap with --without assigning the proof, this does not eliminate the zero-case
+    | (o+p+1), .branch v l r h₃ h₄ h₅ =>
+      if h₆ : o = 0 then
+        -- have : p = 0 := (Nat.le_zero_eq p).mp $ h₇.subst h₃ --not needed, left here for reference
+        (v, .branch value l r h₃ h₄ h₅)
       else
-        have h₈ : index.val - (o + 1) < p :=
+        have h₇ : o > 0 := Nat.zero_lt_of_ne_zero h₆
+        let lr := l.root h₇
+        if h₈ : p = 0 then
+          if le value lr then
+            (v, .branch value l r h₃ h₄ h₅)
+          else
+            let ln := replaceElementAt le ⟨0, h₇⟩ value l h₇
+            (v, .branch ln.fst ln.snd r h₃ h₄ h₅)
+        else
+          have h₉ : p > 0 := Nat.zero_lt_of_ne_zero h₈
+          let rr := r.root h₉
+          if le value lr ∧ le value rr then
+            (v, .branch value l r h₃ h₄ h₅)
+          else if le lr rr then -- value is gt either left or right root. Move it down accordingly
+            let ln := replaceElementAt le ⟨0, h₇⟩ value l h₇
+            (v, .branch ln.fst ln.snd r h₃ h₄ h₅)
+          else
+            let rn := replaceElementAt le ⟨0, h₉⟩ value r h₉
+            (v, .branch rn.fst l rn.snd h₃ h₄ h₅)
+  else
+    match n, heap with
+    | (o+p+1), .branch v l r h₃ h₄ h₅ =>
+      let (v, value) := if le v value then (v, value) else (value, v)
+      if h₆ : index ≤ o then
+        have h₇ : Nat.pred index.val < o := Nat.lt_of_lt_of_le (Nat.pred_lt $ Fin.val_ne_of_ne h₂) h₆
+        let index_in_left : Fin o := ⟨index.val.pred, h₇⟩
+        have h₈ : 0 < o := Nat.zero_lt_of_lt h₇
+        let result := replaceElementAt le index_in_left value l h₈
+        (result.fst, .branch v result.snd r h₃ h₄ h₅)
+      else
+        have h₇ : index.val - (o + 1) < p :=
           -- tactic rewrite failed, result is not type correct.
-          have h₉ : index.val < p + o + 1 := index.isLt
+          have h₈ : index.val < p + o + 1 := index.isLt
             |> (Nat.add_assoc o p 1).subst
             |> (Nat.add_comm p 1).subst (motive := λx ↦ index.val < o + x)
             |> (Nat.add_assoc o 1 p).symm.subst
             |> (Nat.add_comm (o+1) p).subst
-          Nat.sub_lt_of_lt_add h₉ $ (Nat.not_le_eq index.val o).mp h₇
-        let index_in_right : Fin p := ⟨index.val - o - 1, h₈⟩
-        have h₉ : 0 < p := Nat.zero_lt_of_lt h₈
-        let result := replaceElementAt le index_in_right value r h₉
-        (result.fst, .branch v l result.snd h₄ h₅ h₆)
+          Nat.sub_lt_of_lt_add h₈ $ (Nat.not_le_eq index.val o).mp h₆
+        let index_in_right : Fin p := ⟨index.val - o - 1, h₇⟩
+        have h₈ : 0 < p := Nat.zero_lt_of_lt h₇
+        let result := replaceElementAt le index_in_right value r h₈
+        (result.fst, .branch v l result.snd h₃ h₄ h₅)
 
 /--Removes the element at a given index. Use `CompleteTree.indexOf` to find the respective index.-/
 def CompleteTree.heapRemoveAt {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin (n+1)) (heap : CompleteTree α (n+1)) : α × CompleteTree α n :=
