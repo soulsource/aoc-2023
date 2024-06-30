@@ -166,3 +166,11 @@ theorem Nat.sub_lt_of_lt_add {a b c : Nat} (h₁ : a < c + b) (h₂ : b ≤ a) :
   have h₇ : 1 + (a-b) ≤ c := h₆.subst (motive := λx ↦ x ≤ c) h₅
   have h₈ : (a-b) + 1 ≤ c := (Nat.add_comm 1 (a-b)).subst (motive := λx ↦ x ≤ c) h₇
   Nat.lt_of_succ_le h₈
+
+theorem Nat.sub_lt_sub_right {a b c : Nat} (h₁ : b ≤ a) (h₂ : a < c) : (a - b < c - b) := by
+  apply Nat.sub_lt_of_lt_add
+  case h₂ => assumption
+  case h₁ =>
+    have h₃ : b ≤ c := Nat.le_of_lt $ Nat.lt_of_le_of_lt h₁ h₂
+    rw[Nat.sub_add_cancel h₃]
+    assumption

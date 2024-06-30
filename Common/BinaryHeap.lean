@@ -371,15 +371,16 @@ def CompleteTree.get {α : Type u} {n : Nat} (index : Fin (n+1)) (heap : Complet
       match o with
       | (oo+1) => get ⟨j, h₄⟩ l
     else
+      have h₅ : n - o = p := Nat.sub_eq_of_eq_add $ (Nat.add_comm o p).subst h₂
       have : p ≠ 0 :=
-        have h₅ : o < n := Nat.lt_of_le_of_lt (Nat.ge_of_not_lt h₄) (Nat.lt_of_succ_lt_succ h₃)
-        have h₆ : n - o = p := Nat.sub_eq_of_eq_add $ (Nat.add_comm o p).subst h₂
-        h₆.symm.substr $ Nat.sub_ne_zero_of_lt h₅
-      have h₅ : j-o < p := sorry
-      have : j-o < index.val := sorry
+        have h₆ : o < n := Nat.lt_of_le_of_lt (Nat.ge_of_not_lt h₄) (Nat.lt_of_succ_lt_succ h₃)
+        h₅.symm.substr $ Nat.sub_ne_zero_of_lt h₆
+      have h₆ : j - o < p := h₅.subst $ Nat.sub_lt_sub_right (Nat.ge_of_not_lt h₄) $ Nat.lt_of_succ_lt_succ h₃
+      have : j - o < index.val := by simp_arith[h₁, Nat.sub_le]
       match p with
-      | (pp + 1) => get ⟨j - o, h₅⟩ r
+      | (pp + 1) => get ⟨j - o, h₆⟩ r
   termination_by _ => index.val
+
 
 theorem two_n_not_zero_n_not_zero (n : Nat) (p : ¬2*n = 0) : (¬n = 0) := by
   cases n
