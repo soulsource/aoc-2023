@@ -13,8 +13,12 @@ inductive CompleteTree (α : Type u) : Nat → Type u
     → (n+1).isPowerOfTwo ∨ (m+1).isPowerOfTwo
     → CompleteTree α (n+m+1)
 
+/-- Returns the element stored in the root node. -/
 def CompleteTree.root (tree : CompleteTree α n) (_ : 0 < n) : α := match tree with
 | .branch a _ _ _ _ _ => a
+
+/-- Same as CompleteTree.root, but a bit more ergonomic to use. However, CompleteTree.root is better suited for proofs-/
+def CompleteTree.root' (tree : CompleteTree α (n+1)) : α := tree.root (Nat.zero_lt_succ n)
 
 def transitive_le {α : Type u} (le : α → α → Bool) : Prop := ∀(a b c : α), (le a b) ∧ (le b c) → le a c
 def total_le {α : Type u} (le : α → α → Bool) : Prop := ∀(a b : α), le a b ∨ le b a
@@ -70,6 +74,28 @@ instance {α : Type u} [ToString α] : ToString (CompleteTree α n) where
 
 /-- Extracts the element count. For when pattern matching is too much work. -/
 def CompleteTree.length : CompleteTree α n → Nat := λ_ ↦ n
+
+/-- Returns the lenght of the left sub-tree. Mostly exists as a helper for expressing the return type of CompleteTree.left -/
+def CompleteTree.leftLen (tree : CompleteTree α n) (_ : n > 0) : Nat := match n, tree with
+| (_+_), .branch _ l _ _ _ _ => l.length
+
+def CompleteTree.leftLen' (tree : CompleteTree α (n+1)) : Nat := tree.leftLen (Nat.zero_lt_succ n)
+
+/-- Returns the lenght of the right sub-tree. Mostly exists as a helper for expressing the return type of CompleteTree.right -/
+def CompleteTree.rightLen (tree : CompleteTree α n) (_ : n > 0) : Nat := match n, tree with
+| (_+_), .branch _ _ r _ _ _ => r.length
+
+def CompleteTree.rightLen' (tree : CompleteTree α (n+1)) : Nat := tree.rightLen (Nat.zero_lt_succ n)
+
+def CompleteTree.left (tree : CompleteTree α n) (h₁ : n > 0) : CompleteTree α (tree.leftLen h₁) := match n, tree with
+| (_+_), .branch _ l _ _ _ _ => l
+
+def CompleteTree.left' (tree : CompleteTree α (n+1)) : CompleteTree α (tree.leftLen (Nat.zero_lt_succ n)) := tree.left (Nat.zero_lt_succ n)
+
+def CompleteTree.right (tree : CompleteTree α n) (h₁ : n > 0) : CompleteTree α (tree.rightLen h₁) := match n, tree with
+| (_+_), .branch _ _ r _ _ _ => r
+
+def CompleteTree.right' (tree : CompleteTree α (n+1)) : CompleteTree α (tree.rightLen (Nat.zero_lt_succ n)) := tree.right (Nat.zero_lt_succ n)
 
 /--Creates an empty CompleteTree. Needs the heap predicate as parameter.-/
 abbrev CompleteTree.empty {α : Type u} := CompleteTree.leaf (α := α)
@@ -590,8 +616,8 @@ def BinaryHeap.popLast {α : Type u} {le : α → α → Bool} {n : Nat} : (Bina
   Removes the element at index, and instead inserts the given value.
   Returns the element at index, and the resulting tree.
   -/
-def CompleteTree.replaceElementAt {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin n) (value : α) (heap : CompleteTree α n) (h₁ : n > 0) : α × CompleteTree α n :=
-  if h₂ : index = ⟨0,h₁⟩ then
+def CompleteTree.heapReplaceElementAt {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin n) (value : α) (heap : CompleteTree α n) (h₁ : n > 0) : α × CompleteTree α n :=
+  if h₂ : index == ⟨0,h₁⟩ then
     match _h : n, heap with --without assigning the proof, this does not eliminate the zero-case
     | (o+p+1), .branch v l r h₃ h₄ h₅ =>
       if h₆ : o = 0 then
@@ -604,7 +630,10 @@ def CompleteTree.replaceElementAt {α : Type u} {n : Nat} (le : α → α → Bo
           if le value lr then
             (v, .branch value l r h₃ h₄ h₅)
           else
-            let ln := replaceElementAt le ⟨0, h₇⟩ value l h₇
+            -- We would not need to recurse further, because we know o = 1.
+            -- However, that would introduce type casts, what makes proving harder...
+            -- have h₉: o = 1 := Nat.le_antisymm (by simp_arith[h₈] at h₄; exact h₄) (Nat.succ_le_of_lt h₇)
+            let ln := heapReplaceElementAt le ⟨0, h₇⟩ value l h₇
             (v, .branch ln.fst ln.snd r h₃ h₄ h₅)
         else
           have h₉ : p > 0 := Nat.zero_lt_of_ne_zero h₈
@@ -612,20 +641,20 @@ def CompleteTree.replaceElementAt {α : Type u} {n : Nat} (le : α → α → Bo
           if le value lr ∧ le value rr then
             (v, .branch value l r h₃ h₄ h₅)
           else if le lr rr then -- value is gt either left or right root. Move it down accordingly
-            let ln := replaceElementAt le ⟨0, h₇⟩ value l h₇
+            let ln := heapReplaceElementAt le ⟨0, h₇⟩ value l h₇
             (v, .branch ln.fst ln.snd r h₃ h₄ h₅)
           else
-            let rn := replaceElementAt le ⟨0, h₉⟩ value r h₉
+            let rn := heapReplaceElementAt le ⟨0, h₉⟩ value r h₉
             (v, .branch rn.fst l rn.snd h₃ h₄ h₅)
   else
     match n, heap with
     | (o+p+1), .branch v l r h₃ h₄ h₅ =>
       let (v, value) := if le v value then (v, value) else (value, v)
       if h₆ : index ≤ o then
-        have h₇ : Nat.pred index.val < o := Nat.lt_of_lt_of_le (Nat.pred_lt $ Fin.val_ne_of_ne h₂) h₆
+        have h₇ : Nat.pred index.val < o := Nat.lt_of_lt_of_le (Nat.pred_lt $ Fin.val_ne_of_ne (ne_of_beq_false $ Bool.of_not_eq_true h₂)) h₆
         let index_in_left : Fin o := ⟨index.val.pred, h₇⟩
         have h₈ : 0 < o := Nat.zero_lt_of_lt h₇
-        let result := replaceElementAt le index_in_left value l h₈
+        let result := heapReplaceElementAt le index_in_left value l h₈
         (result.fst, .branch v result.snd r h₃ h₄ h₅)
       else
         have h₇ : index.val - (o + 1) < p :=
@@ -638,8 +667,180 @@ def CompleteTree.replaceElementAt {α : Type u} {n : Nat} (le : α → α → Bo
           Nat.sub_lt_of_lt_add h₈ $ (Nat.not_le_eq index.val o).mp h₆
         let index_in_right : Fin p := ⟨index.val - o - 1, h₇⟩
         have h₈ : 0 < p := Nat.zero_lt_of_lt h₇
-        let result := replaceElementAt le index_in_right value r h₈
+        let result := heapReplaceElementAt le index_in_right value r h₈
         (result.fst, .branch v l result.snd h₃ h₄ h₅)
+
+private theorem CompleteTree.heapReplaceElementAtRootReturnsRoot {α : Type u} {n : Nat} (le : α → α → Bool) (value : α) (heap : CompleteTree α n) (h₁ : n > 0) : (heap.heapReplaceElementAt le ⟨0, h₁⟩ value h₁).fst = heap.root h₁ :=
+  match h₂ : n, heap with
+  | (o+p+1), .branch v l r h₃ h₄ h₅ => by
+    unfold heapReplaceElementAt
+    simp
+    cases o <;> simp
+    case zero =>
+      unfold root
+      simp
+    case succ =>
+      cases p <;> simp
+      case zero =>
+        cases le value (root l _)
+        <;> simp
+        <;> unfold root
+        <;> simp
+      case succ =>
+        cases le value (root l _) <;> cases le value (root r _)
+        <;> simp
+        case true.true =>
+          unfold root
+          simp
+        case true.false | false.true | false.false =>
+          cases le (root l _) (root r _)
+          <;> simp
+          <;> unfold root
+          <;> simp
+
+private theorem CompleteTree.heapReplaceElementAtRootPossibleRootValuesAuxL {α : Type u} (heap : CompleteTree α n) (h₁ : n > 1) : 0 < heap.leftLen (Nat.lt_trans (Nat.lt_succ_self 0) h₁) :=
+  match h₅: n, heap with
+  | (o+p+1), .branch v l r h₂ h₃ h₄ => by
+    simp[leftLen, length]
+    cases o
+    case zero => rewrite[(Nat.le_zero_eq p).mp h₂] at h₁; contradiction
+    case succ q => exact Nat.zero_lt_succ q
+
+private theorem CompleteTree.heapReplaceElementAtRootPossibleRootValuesAuxR {α : Type u} (heap : CompleteTree α n) (h₁ : n > 2) : 0 < heap.rightLen (Nat.lt_trans (Nat.lt_succ_self 0) $ Nat.lt_trans (Nat.lt_succ_self 1) h₁) :=
+  match h₅: n, heap with
+  | (o+p+1), .branch v l r h₂ h₃ h₄ => by
+    simp[rightLen, length]
+    cases p
+    case zero => simp_arith at h₁; simp at h₃; exact absurd h₁ (Nat.not_le_of_gt h₃)
+    case succ q => exact Nat.zero_lt_succ q
+
+private theorem CompleteTree.heapReplaceElementAtRootPossibleRootValues1 {α : Type u} (le : α → α → Bool) (value : α) (heap : CompleteTree α n) (h₁ : n = 1) : (heap.heapReplaceElementAt le ⟨0,by simp[h₁]⟩ value (by simp[h₁])).snd.root (by simp[h₁]) = value :=
+  match n, heap with
+  | (o+p+1), .branch v l r _ _ _ => by
+    unfold heapReplaceElementAt
+    have h₃ : o + p = 0 := Nat.succ.inj h₁
+    have h₄ : p = 0 := (Nat.add_eq_zero.mp h₃).right
+    have h₃ : o = 0 := (Nat.add_eq_zero.mp h₃).left
+    unfold root
+    simp[*]
+
+private theorem CompleteTree.heapReplaceElementAtRootPossibleRootValues2 {α : Type u} (le : α → α → Bool) (value : α) (heap : CompleteTree α n) (h₁ : n = 2) :
+have h₂ : 0 < n := Nat.lt_trans (Nat.lt_succ_self 0) $  h₁.substr (Nat.lt_succ_self 1)
+have h₃ : 0 < leftLen heap h₂ := heapReplaceElementAtRootPossibleRootValuesAuxL heap (h₁.substr (Nat.lt_succ_self 1))
+(heap.heapReplaceElementAt le ⟨0,h₂⟩ value h₂).snd.root h₂ = value
+∨ (heap.heapReplaceElementAt le ⟨0,h₂⟩ value h₂).snd.root h₂ = (heap.left h₂).root h₃
+:=
+  sorry
+
+private theorem CompleteTree.heapReplaceElementAtRootPossibleRootValues3 {α : Type u} (le : α → α → Bool) (value : α) (heap : CompleteTree α n) (h₁ : n > 2) :
+have h₂ : 0 < n := Nat.lt_trans (Nat.lt_succ_self 0) $ Nat.lt_trans (Nat.lt_succ_self 1) h₁
+have h₃ : 0 < leftLen heap h₂ := heapReplaceElementAtRootPossibleRootValuesAuxL heap $ Nat.lt_trans (Nat.lt_succ_self 1) h₁
+have h₄ : 0 < rightLen heap h₂ := heapReplaceElementAtRootPossibleRootValuesAuxR heap h₁
+(heap.heapReplaceElementAt le ⟨0,h₂⟩ value h₂).snd.root h₂ = value
+∨ (heap.heapReplaceElementAt le ⟨0,h₂⟩ value h₂).snd.root h₂ = (heap.left h₂).root h₃
+∨ (heap.heapReplaceElementAt le ⟨0,h₂⟩ value h₂).snd.root h₂ = (heap.right h₂).root h₄
+:=
+  sorry
+
+private theorem CompleteTree.heapReplaceElementAtIsHeapLeRootAux {α : Type u} (le : α → α → Bool) (value : α) (heap : CompleteTree α n) (h₁ : n > 0) (h₂ : le (root heap h₁) value) : HeapPredicate.leOrLeaf le (root heap h₁) (heapReplaceElementAt le ⟨0, h₁⟩ value heap h₁).snd := by
+  sorry
+
+private theorem CompleteTree.heapReplaceElementAtIsHeapLeRootAuxLe {α : Type u} (le : α → α → Bool) {a b c : α} (h₁ : transitive_le le) (h₂ : total_le le) (h₃ : le b c) : ¬le a c ∨ ¬ le a b → le b a
+| .inr h₅ => not_le_imp_le h₂ _ _ h₅
+| .inl h₅ => h₁ b c a ⟨h₃,not_le_imp_le h₂ _ _ h₅⟩
+
+theorem CompleteTree.heapReplaceElementAtIsHeap {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin n) (value : α) (heap : CompleteTree α n) (h₁ : n > 0) (h₂ : HeapPredicate heap le) (h₃ : transitive_le le) (h₄ : total_le le) : HeapPredicate (heap.heapReplaceElementAt le index value h₁).snd le :=
+  if h₅ : index == ⟨0,h₁⟩ then
+    match h₆ : n, heap with
+    | (o+p+1), .branch v l r h₇ h₈ h₉ =>
+      if h₁₀ : o = 0 then by
+        unfold heapReplaceElementAt
+        simp[*]
+        unfold HeapPredicate at h₂ ⊢
+        simp[h₂]
+        unfold HeapPredicate.leOrLeaf
+        have : p = 0 := by rw[h₁₀, Nat.le_zero_eq] at h₇; assumption
+        apply And.intro
+        case left => match o, l with
+        | Nat.zero, _ => trivial
+        case right => match p, r with
+        | Nat.zero, _ => trivial
+      else if h₁₁ : p = 0 then by
+        unfold heapReplaceElementAt
+        simp[*]
+        cases h₉ : le value (root l (_ : 0 < o)) <;> simp
+        case true =>
+          unfold HeapPredicate at *
+          simp[h₂]
+          unfold HeapPredicate.leOrLeaf
+          apply And.intro
+          case right => match p, r with
+          | Nat.zero, _ => trivial
+          case left => match o, l with
+          | Nat.succ o, h => assumption
+        case false =>
+          rw[heapReplaceElementAtRootReturnsRoot]
+          have h₁₂ : le (l.root (Nat.zero_lt_of_ne_zero h₁₀)) value := by simp[h₉, h₄, not_le_imp_le]
+          have h₁₃ : o = 1 := Nat.le_antisymm (by simp_arith[h₁₁] at h₈; exact h₈) (Nat.succ_le_of_lt (Nat.zero_lt_of_ne_zero h₁₀))
+          unfold HeapPredicate at *
+          simp[h₂] --closes one sub-goal
+          apply And.intro <;> try apply And.intro
+          case right.right => match p, r with
+            | 0, .leaf => simp[HeapPredicate.leOrLeaf]
+          case right.left =>
+            simp[HeapPredicate.leOrLeaf, h₁₃]
+            cases o <;> simp[heapReplaceElementAtRootPossibleRootValues1, *]
+          case left =>
+            apply heapReplaceElementAtIsHeap
+            <;> simp[*]
+      else if h₁₂ : le value (root l (Nat.zero_lt_of_ne_zero h₁₀)) ∧ le value (root r (Nat.zero_lt_of_ne_zero h₁₁)) then by
+        unfold heapReplaceElementAt
+        unfold HeapPredicate at *
+        simp[*]
+        unfold HeapPredicate.leOrLeaf
+        cases o
+        . contradiction
+        cases p
+        . contradiction
+        simp
+        assumption
+      else by
+        unfold heapReplaceElementAt
+        simp[*]
+        have h₁₃ : ¬le value (root l _) ∨ ¬le value (root r _) := (Decidable.not_and_iff_or_not (le value (root l (Nat.zero_lt_of_ne_zero h₁₀)) = true) (le value (root r (Nat.zero_lt_of_ne_zero h₁₁)) = true)).mp h₁₂
+        cases h₁₄ : le (root l (_ : 0 < o)) (root r (_ : 0 < p))
+        <;> simp
+        <;> unfold HeapPredicate at *
+        <;> simp[*]
+        <;> apply And.intro
+        <;> try apply And.intro
+        case false.left | true.left =>
+          apply heapReplaceElementAtIsHeap
+          <;> simp[*]
+        case false.right.left =>
+          unfold HeapPredicate.leOrLeaf
+          have h₁₅ : le (r.root _) (l.root _) = true := not_le_imp_le h₄ (l.root _) (r.root _) $ (Bool.not_eq_true $ le (root l (_ : 0 < o)) (root r (_ : 0 < p))).substr h₁₄
+          simp[heapReplaceElementAtRootReturnsRoot]
+          cases o <;> simp[h₁₅]
+        case true.right.right =>
+          unfold HeapPredicate.leOrLeaf
+          simp[heapReplaceElementAtRootReturnsRoot]
+          cases p <;> simp[h₁₄]
+        case false.right.right =>
+          simp[heapReplaceElementAtRootReturnsRoot]
+          have h₁₅ : le (r.root _) (l.root _) = true := not_le_imp_le h₄ (l.root _) (r.root _) $ (Bool.not_eq_true $ le (root l (_ : 0 < o)) (root r (_ : 0 < p))).substr h₁₄
+          have h₁₆ : le (r.root _) value := heapReplaceElementAtIsHeapLeRootAuxLe le h₃ h₄ h₁₅ h₁₃
+          simp[heapReplaceElementAtIsHeapLeRootAux, *]
+        case true.right.left =>
+          simp[heapReplaceElementAtRootReturnsRoot]
+          let or_comm := λ{a b: Prop} (hx : a∨b) ↦ -- in Core library, but I still have Lean 4.2 installed...
+            match hx with
+            | .inl aa => (.inr aa : b∨a)
+            | .inr bb => (.inl bb : b∨a)
+          have h₁₆ : le (l.root _) value := heapReplaceElementAtIsHeapLeRootAuxLe le h₃ h₄ h₁₄ (or_comm h₁₃)
+          simp[heapReplaceElementAtIsHeapLeRootAux, *]
+  else
+    sorry
 
 /--Removes the element at a given index. Use `CompleteTree.indexOf` to find the respective index.-/
 def CompleteTree.heapRemoveAt {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin (n+1)) (heap : CompleteTree α (n+1)) : α × CompleteTree α n :=
@@ -654,7 +855,7 @@ def CompleteTree.heapRemoveAt {α : Type u} {n : Nat} (le : α → α → Bool) 
       case succ nn => exact Nat.zero_lt_of_ne_zero $ Nat.succ_ne_zero nn
       case zero => exact absurd ((Nat.le_zero_eq index.val).mp (Nat.le_of_lt_succ ((Nat.zero_add 1).subst index.isLt))) p
     let index : Fin n := ⟨index, Nat.lt_of_le_of_ne (Nat.le_of_lt_succ index.isLt) p⟩
-    replaceElementAt le index l.fst l.snd n_gt_zero
+    heapReplaceElementAt le index l.fst l.snd n_gt_zero
 
 -------------------------------------------------------------------------------------------------------
 

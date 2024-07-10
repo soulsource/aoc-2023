@@ -174,3 +174,10 @@ theorem Nat.sub_lt_sub_right {a b c : Nat} (h₁ : b ≤ a) (h₂ : a < c) : (a 
     have h₃ : b ≤ c := Nat.le_of_lt $ Nat.lt_of_le_of_lt h₁ h₂
     rw[Nat.sub_add_cancel h₃]
     assumption
+
+theorem Nat.add_eq_zero {a b : Nat} :  a + b = 0 ↔ a = 0 ∧ b = 0 := by
+  constructor <;> intro h₁
+  case mpr =>
+    simp[h₁]
+  case mp =>
+    cases a <;> simp_arith at *; assumption
