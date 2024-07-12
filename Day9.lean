@@ -36,7 +36,7 @@ private def extrapolate : List Int → Int
       case cons b bs hb => rw[←differences_length_independent_arg]
                            assumption
     a + extrapolate (differences (a :: as))
-termination_by extrapolate a => a.length
+termination_by a => a.length
 
 def part1 : List (List Int) → Int :=
   List.foldl Int.add 0 ∘ List.map (extrapolate ∘ List.reverse)

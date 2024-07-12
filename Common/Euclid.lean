@@ -8,4 +8,3 @@ def xgcd (a b: Nat) : Nat × Int × Int :=
     (d, tt ,ss - tt * (a / b))
   else
     (a,1,0)
-  termination_by xgcd a b => b

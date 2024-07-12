@@ -109,7 +109,7 @@ private def part1_impl (waypoints : Lean.HashMap WaypointId ConnectedWaypoints) 
     | Except.error $ some n => part1_impl waypoints instructions remainingStarts n.fst n.snd
   else
     none -- walking in circles
-  termination_by part1_impl a b c d e => c.length
+  termination_by possibleStarts.length
 
 open Lean in
 def part1 (input : List Instruction × List Waypoint) : Option Nat :=
@@ -158,7 +158,7 @@ private def part2_impl (waypoints : Lean.HashMap WaypointId ConnectedWaypoints) 
     | Except.error $ some n => part2_impl waypoints instructions n.fst remainingStarts n.snd
   else
     none -- walking in circles
-  termination_by part2_impl a b c d e => totalRemainingStarts d
+  termination_by totalRemainingStarts possibleStarts
 
 -- Okay, tried Brute Force, it did NOT work. Or rather, it might work, but I won't be able to prove
 -- termination for it. Not that it wouldn't be possible to prove, just I won't manage to.
@@ -280,7 +280,7 @@ private def findCyclingGoalsInPath_impl (waypoints : Lean.HashMap WaypointId Con
       some {start := n, interval := cycleLength : CyclingGoal}
     else
       none -- goal was reached before we started to walk in cycles, ignore.
-  termination_by findCyclingGoalsInPath_impl a b c d e f g => c.length
+  termination_by possibleStarts.length
 
 private def findCyclingGoalsInPath (waypoints : Lean.HashMap WaypointId ConnectedWaypoints) (instructions : List Instruction) (possibleStarts : List WaypointId) (startPosition : WaypointId) : List CyclingGoal :=
   findCyclingGoalsInPath_impl waypoints instructions possibleStarts [] [] startPosition 0

@@ -30,10 +30,10 @@ private theorem mul2_isPowerOfTwo_smaller_smaller_equal (n : Nat) (power : Nat) 
 private theorem power_of_two_go_one_eq (n : Nat) (power : Nat) (h₁ : n.isPowerOfTwo) (h₂ : power.isPowerOfTwo) (h₃ : power ≤ n) : Nat.nextPowerOfTwo.go n power (Nat.pos_of_isPowerOfTwo h₂) = n := by
   unfold Nat.nextPowerOfTwo.go
   split
-  case inl h₄ => exact power_of_two_go_one_eq n (power*2) (h₁) (Nat.mul2_isPowerOfTwo_of_isPowerOfTwo h₂) (mul2_isPowerOfTwo_smaller_smaller_equal n power h₁ h₂ h₄)
-  case inr h₄ => rewrite[Nat.not_lt_eq power n] at h₄
-                 exact Nat.le_antisymm h₃ h₄
-termination_by power_of_two_go_one_eq _ p _ _ _ => n - p
+  case isTrue h₄ => exact power_of_two_go_one_eq n (power*2) (h₁) (Nat.mul2_isPowerOfTwo_of_isPowerOfTwo h₂) (mul2_isPowerOfTwo_smaller_smaller_equal n power h₁ h₂ h₄)
+  case isFalse h₄ => rewrite[Nat.not_lt_eq power n] at h₄
+                     exact Nat.le_antisymm h₃ h₄
+termination_by n - power
 decreasing_by
   simp_wf
   have := Nat.pos_of_isPowerOfTwo h₂
@@ -75,17 +75,6 @@ theorem Nat.mul2_ispowerOfTwo_iff_isPowerOfTwo (n : Nat) : n.isPowerOfTwo ↔ (2
       | zero => contradiction
       | succ m => cases k with
         | zero => simp_arith at h₄
-                  have h₆ (m : Nat) : 2*m+2 > 2^0 := by
-                    induction m with
-                    | zero => decide
-                    | succ o o_ih => simp_arith at *
-                                     have h₆ := Nat.le_step $ Nat.le_step o_ih
-                                     simp_arith at h₆
-                                     assumption
-                  have h₆ := Nat.ne_of_lt (h₆ m)
-                  simp_arith at h₆
-                  rewrite[h₄] at h₆ --why is this needed?!?
-                  contradiction
         | succ l => rewrite[Nat.pow_succ 2 l] at h₄
                     rewrite[Nat.mul_comm (2^l) 2] at h₄
                     have h₄ := Nat.eq_of_mul_eq_mul_left (by decide : 0<2) h₄
@@ -128,7 +117,7 @@ mutual
                 exact (Nat.not_odd_even (by simp[h₁]))
   private theorem Nat.not_odd_even {n : Nat} (h₁ : ¬Nat.isOdd n) : (Nat.isEven n) := by
     cases n with
-    | zero => trivial
+    | zero => simp[isEven]
     | succ o => simp[Nat.isEven, Nat.isOdd] at *
                 exact (Nat.not_even_odd (by simp[h₁]))
 end
@@ -141,7 +130,7 @@ mutual
                 simp[Nat.odd_not_even h₁]
   private theorem Nat.odd_not_even {n : Nat} (h₁ : Nat.isOdd n) : ¬(Nat.isEven n ):= by
     cases n with
-    | zero => contradiction
+    | zero => unfold isOdd at h₁; contradiction
     | succ o => simp[Nat.isEven, Nat.isOdd] at *
                 simp[Nat.even_not_odd h₁]
 end

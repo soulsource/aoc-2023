@@ -22,7 +22,7 @@ def quicksortBy {α : Type} (pred : α → α → Bool): List α → List α
   let smallers := as.filter smallerPred
   let biggers := as.filter largerEqualPred
   (quicksortBy pred smallers) ++ [a] ++ (quicksortBy pred biggers)
-  termination_by quicksortBy pred l => l.length
+  termination_by l => l.length
 
 def quicksort {α : Type} [Ord α] : List α → List α := quicksortBy λ a b ↦ Ord.compare a b == Ordering.lt
 

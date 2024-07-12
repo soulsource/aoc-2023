@@ -6,8 +6,8 @@ instance {α : Type} [Ord α]: LT α where
   lt := λ a b ↦ Ord.compare a b == Ordering.lt
 instance {α : Type} [Ord α]: LE α where
   le := λ a b ↦ Ord.compare a b != Ordering.gt
-instance {a b : α} [Ord α] : Decidable (a ≤ b) :=
-  if p : Ord.compare a b != Ordering.gt then
+instance {a b : α} [Ord α] : Decidable (a < b) :=
+  if p : Ord.compare a b == Ordering.lt then
     Decidable.isTrue p
   else
     Decidable.isFalse p
