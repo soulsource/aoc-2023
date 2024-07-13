@@ -20,6 +20,9 @@ def CompleteTree.root (tree : CompleteTree α n) (_ : 0 < n) : α := match tree 
 /-- Same as CompleteTree.root, but a bit more ergonomic to use. However, CompleteTree.root is better suited for proofs-/
 def CompleteTree.root' (tree : CompleteTree α (n+1)) : α := tree.root (Nat.zero_lt_succ n)
 
+/-- Helper to rw away root, because Lean 4.9 makes it unnecessarily hard to deal with match in tactics mode... -/
+theorem CompleteTree.root_unfold {α : Type u} {o p : Nat} (v : α) (l : CompleteTree α o) (r : CompleteTree α p) (h₁ : p ≤ o) (h₂ : o < 2 * (p + 1)) (h₃ : (o + 1).isPowerOfTwo ∨ (p + 1).isPowerOfTwo) (h₄ : o + p + 1 > 0): (CompleteTree.branch v l r h₁ h₂ h₃).root h₄ = v := rfl
+
 def transitive_le {α : Type u} (le : α → α → Bool) : Prop := ∀(a b c : α), (le a b) ∧ (le b c) → le a c
 def total_le {α : Type u} (le : α → α → Bool) : Prop := ∀(a b : α), le a b ∨ le b a
 
@@ -92,10 +95,16 @@ def CompleteTree.left (tree : CompleteTree α n) (h₁ : n > 0) : CompleteTree �
 
 def CompleteTree.left' (tree : CompleteTree α (n+1)) : CompleteTree α (tree.leftLen (Nat.zero_lt_succ n)) := tree.left (Nat.zero_lt_succ n)
 
+/-- Helper to rw away left, because Lean 4.9 makes it unnecessarily hard to deal with match in tactics mode... -/
+theorem CompleteTree.left_unfold {α : Type u} {o p : Nat} (v : α) (l : CompleteTree α o) (r : CompleteTree α p) (h₁ : p ≤ o) (h₂ : o < 2 * (p + 1)) (h₃ : (o + 1).isPowerOfTwo ∨ (p + 1).isPowerOfTwo) (h₄ : o + p + 1 > 0): (CompleteTree.branch v l r h₁ h₂ h₃).left h₄ = l := rfl
+
 def CompleteTree.right (tree : CompleteTree α n) (h₁ : n > 0) : CompleteTree α (tree.rightLen h₁) := match n, tree with
 | (_+_), .branch _ _ r _ _ _ => r
 
 def CompleteTree.right' (tree : CompleteTree α (n+1)) : CompleteTree α (tree.rightLen (Nat.zero_lt_succ n)) := tree.right (Nat.zero_lt_succ n)
+
+/-- Helper to rw away right, because Lean 4.9 makes it unnecessarily hard to deal with match in tactics mode... -/
+theorem CompleteTree.right_unfold {α : Type u} {o p : Nat} (v : α) (l : CompleteTree α o) (r : CompleteTree α p) (h₁ : p ≤ o) (h₂ : o < 2 * (p + 1)) (h₃ : (o + 1).isPowerOfTwo ∨ (p + 1).isPowerOfTwo) (h₄ : o + p + 1 > 0): (CompleteTree.branch v l r h₁ h₂ h₃).right h₄ = r := rfl
 
 /--Creates an empty CompleteTree. Needs the heap predicate as parameter.-/
 abbrev CompleteTree.empty {α : Type u} := CompleteTree.leaf (α := α)
@@ -613,7 +622,7 @@ def BinaryHeap.popLast {α : Type u} {le : α → α → Bool} {n : Nat} : (Bina
 /--
   Helper for CompleteTree.heapReplaceElementAt. Makes proofing heap predicate work in Lean 4.9
   -/
-def CompleteTree.heapReplaceRoot  {α : Type u} {n : Nat} (le : α → α → Bool) (value : α) (heap : CompleteTree α n) (h₁ : n > 0) : α × CompleteTree α n :=
+def CompleteTree.heapReplaceRoot  {α : Type u} {n : Nat} (le : α → α → Bool) (value : α) (heap : CompleteTree α n) (_ : n > 0) : α × CompleteTree α n :=
 match n, heap with
   | (o+p+1), .branch v l r h₃ h₄ h₅ =>
     if h₆ : o = 0 then
@@ -718,8 +727,9 @@ private theorem CompleteTree.heapReplaceRootPossibleRootValuesAuxR {α : Type u}
     case zero => simp_arith at h₁; simp at h₃; exact absurd h₁ (Nat.not_le_of_gt h₃)
     case succ q => exact Nat.zero_lt_succ q
 
-private theorem CompleteTree.heapReplaceRootPossibleRootValues1Aux {α : Type u} (le : α → α → Bool) (value : α) (heap : CompleteTree α n) (h₁ : n = 1) (hx : n > 0) : (heap.heapReplaceRoot le value (hx)).snd.root (hx) = value := by
+private theorem CompleteTree.heapReplaceRootPossibleRootValues1 {α : Type u} (le : α → α → Bool) (value : α) (heap : CompleteTree α n) (h₁ : n = 1) : (heap.heapReplaceRoot le value (h₁.substr (Nat.lt_succ_self 0))).snd.root (h₁.substr (Nat.lt_succ_self 0)) = value := by
   unfold heapReplaceRoot
+  generalize (h₁.substr (Nat.lt_succ_self 0) : n > 0) = hx
   split
   rename_i o p v l r _ _ _ h₁
   have h₃ : o + p = 0 := Nat.succ.inj h₁
@@ -727,16 +737,24 @@ private theorem CompleteTree.heapReplaceRootPossibleRootValues1Aux {α : Type u}
   unfold root
   simp_all
 
-private theorem CompleteTree.heapReplaceRootPossibleRootValues1 {α : Type u} (le : α → α → Bool) (value : α) (heap : CompleteTree α n) (h₁ : n = 1) : (heap.heapReplaceRoot le value (by simp[h₁])).snd.root (by simp[h₁]) = value :=
-  heapReplaceRootPossibleRootValues1Aux le value heap h₁ (by simp[h₁])
-
 private theorem CompleteTree.heapReplaceRootPossibleRootValues2 {α : Type u} (le : α → α → Bool) (value : α) (heap : CompleteTree α n) (h₁ : n = 2) :
 have h₂ : 0 < n := Nat.lt_trans (Nat.lt_succ_self 0) $  h₁.substr (Nat.lt_succ_self 1)
 have h₃ : 0 < leftLen heap h₂ := heapReplaceRootPossibleRootValuesAuxL heap (h₁.substr (Nat.lt_succ_self 1))
 (heap.heapReplaceRoot le value h₂).snd.root h₂ = value
 ∨ (heap.heapReplaceRoot le value h₂).snd.root h₂ = (heap.left h₂).root h₃
-:=
-  sorry
+:= by
+  simp
+  unfold heapReplaceRoot
+  generalize (Nat.lt_trans (Nat.lt_succ_self 0) (Eq.substr h₁ (Nat.lt_succ_self 1)) : 0 < n) = h₂
+  split
+  rename_i o p v l r h₃ h₄ h₅ h₂
+  cases o <;> simp
+  case zero => simp only[root, true_or]
+  case succ oo =>
+    have h₆ : p = 0 := by simp at h₁; omega
+    simp[h₆]
+    cases le value (l.root _)
+    <;> simp[heapReplaceRootReturnsRoot, root_unfold, left_unfold]
 
 private theorem CompleteTree.heapReplaceRootPossibleRootValues3 {α : Type u} (le : α → α → Bool) (value : α) (heap : CompleteTree α n) (h₁ : n > 2) :
 have h₂ : 0 < n := Nat.lt_trans (Nat.lt_succ_self 0) $ Nat.lt_trans (Nat.lt_succ_self 1) h₁
@@ -745,8 +763,23 @@ have h₄ : 0 < rightLen heap h₂ := heapReplaceRootPossibleRootValuesAuxR heap
 (heap.heapReplaceRoot le value h₂).snd.root h₂ = value
 ∨ (heap.heapReplaceRoot le value h₂).snd.root h₂ = (heap.left h₂).root h₃
 ∨ (heap.heapReplaceRoot le value h₂).snd.root h₂ = (heap.right h₂).root h₄
-:=
-  sorry
+:= by
+  simp
+  unfold heapReplaceRoot
+  generalize (Nat.lt_trans (Nat.lt_succ_self 0) (Nat.lt_trans (Nat.lt_succ_self 1) h₁) : 0 < n) = h₂
+  split
+  rename_i o p v l r h₃ h₄ h₅ h₂
+  cases o <;> simp
+  case zero => simp only[root, true_or]
+  case succ oo =>
+    have h₆ : p ≠ 0 := by simp at h₁; omega
+    simp[h₆]
+    cases le value (l.root _) <;> simp
+    rotate_right
+    cases le value (r.root _) <;> simp
+    case true.true => simp[root]
+    case false | true.false =>
+      cases le (l.root _) (r.root _) <;> simp[heapReplaceRootReturnsRoot, root_unfold, left_unfold, right_unfold]
 
 private theorem CompleteTree.heapReplaceRootIsHeapLeRootAux {α : Type u} (le : α → α → Bool) (value : α) (heap : CompleteTree α n) (h₁ : HeapPredicate heap le) (h₂ : n > 0) (h₃ : le (root heap h₂) value) : HeapPredicate.leOrLeaf le (root heap h₂) (heapReplaceRoot le value heap h₂).snd :=
   if h₄ : n = 1 then by
