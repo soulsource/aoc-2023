@@ -748,8 +748,61 @@ have h₄ : 0 < rightLen heap h₂ := heapReplaceRootPossibleRootValuesAuxR heap
 :=
   sorry
 
-private theorem CompleteTree.heapReplaceRootIsHeapLeRootAux {α : Type u} (le : α → α → Bool) (value : α) (heap : CompleteTree α n) (h₁ : n > 0) (h₂ : le (root heap h₁) value) : HeapPredicate.leOrLeaf le (root heap h₁) (heapReplaceRoot le value heap h₁).snd := by
-  sorry
+private theorem CompleteTree.heapReplaceRootIsHeapLeRootAux {α : Type u} (le : α → α → Bool) (value : α) (heap : CompleteTree α n) (h₁ : HeapPredicate heap le) (h₂ : n > 0) (h₃ : le (root heap h₂) value) : HeapPredicate.leOrLeaf le (root heap h₂) (heapReplaceRoot le value heap h₂).snd :=
+  if h₄ : n = 1 then by
+    have h₅ : le (heap.root h₂) ( (heapReplaceRoot le value heap h₂).snd.root h₂) := by simp only[h₃, h₄, heapReplaceRootPossibleRootValues1]
+    unfold HeapPredicate.leOrLeaf
+    split <;> simp[h₅]
+  else if h₅ : n = 2 then by
+    have h₆ := heapReplaceRootPossibleRootValues2 le value heap h₅
+    simp at h₆
+    cases h₆
+    case inl h₆ =>
+      have h₇ : le (heap.root h₂) ( (heapReplaceRoot le value heap h₂).snd.root h₂) := by simp only [h₆, h₃]
+      unfold HeapPredicate.leOrLeaf
+      split <;> simp[h₇]
+    case inr h₆ =>
+      unfold HeapPredicate.leOrLeaf
+      unfold HeapPredicate at h₁
+      split at h₁
+      case h_1 => contradiction
+      case h_2 o p v l r h₇ h₈ h₉ =>
+        have h₁₁ : p = 0 := by
+         simp at h₅
+         cases o; simp[h₅] at h₇; exact h₇; simp_arith[Nat.add_eq_zero ] at h₅; exact h₅.right
+        have h₁₀ : o = 1 := by simp_arith[h₁₁] at h₅; assumption
+        simp
+        rw[h₆]
+        have h₁₂ := h₁.right.right.left
+        unfold HeapPredicate.leOrLeaf at h₁₂
+        cases o ; contradiction;
+        case succ =>
+          exact h₁₂
+  else by
+    have h₆ : n > 2 := by omega
+    have h₇ := heapReplaceRootPossibleRootValues3 le value heap h₆
+    simp at h₇
+    unfold HeapPredicate at h₁
+    cases h₇
+    case inl h₇ =>
+      have h₈ : le (heap.root h₂) ( (heapReplaceRoot le value heap h₂).snd.root h₂) := by simp only [h₇, h₃]
+      unfold HeapPredicate.leOrLeaf
+      split <;> simp[h₈]
+    case inr h₇ =>
+      cases h₇
+      case inl h₇ | inr h₇ =>
+        unfold HeapPredicate.leOrLeaf
+        split at h₁
+        contradiction
+        simp_all
+        case h_2 o p v l r _ _ _ =>
+          cases o
+          omega
+          cases p
+          omega
+          have h₈ := h₁.right.right.left
+          have h₉ := h₁.right.right.right
+          assumption
 
 private theorem CompleteTree.heapReplaceRootIsHeapLeRootAuxLe {α : Type u} (le : α → α → Bool) {a b c : α} (h₁ : transitive_le le) (h₂ : total_le le) (h₃ : le b c) : ¬le a c ∨ ¬ le a b → le b a
 | .inr h₅ => not_le_imp_le h₂ _ _ h₅
@@ -836,11 +889,7 @@ theorem CompleteTree.heapReplaceRootIsHeap {α : Type u} {n: Nat} (le : α → �
           simp[heapReplaceRootIsHeapLeRootAux, *]
         case true.right.left =>
           simp[heapReplaceRootReturnsRoot]
-          let or_comm := λ{a b: Prop} (hx : a∨b) ↦ -- in Core library, but I still have Lean 4.2 installed...
-            match hx with
-            | .inl aa => (.inr aa : b∨a)
-            | .inr bb => (.inl bb : b∨a)
-          have h₁₆ : le (l.root _) value := heapReplaceRootIsHeapLeRootAuxLe le h₃ h₄ h₁₄ (or_comm h₁₃)
+          have h₁₆ : le (l.root _) value := heapReplaceRootIsHeapLeRootAuxLe le h₃ h₄ h₁₄ h₁₃.symm
           simp[heapReplaceRootIsHeapLeRootAux, *]
 
 theorem CompleteTree.heapReplaceElementAtIsHeap {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin n) (value : α) (heap : CompleteTree α n) (h₁ : n > 0) (h₂ : HeapPredicate heap le) (h₃ : transitive_le le) (h₄ : total_le le) : HeapPredicate (heap.heapReplaceElementAt le index value h₁).snd le := by
