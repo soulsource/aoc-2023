@@ -911,6 +911,18 @@ theorem CompleteTree.heapReplaceRootIsHeap {α : Type u} {n: Nat} (le : α → �
           have h₁₆ : le (l.root _) value := heapReplaceRootIsHeapLeRootAuxLe le h₃ h₄ h₁₄ h₁₃.symm
           simp[heapReplaceRootIsHeapLeRootAux, *]
 
+private theorem CompleteTree.heapReplaceElementAtIsHeapLeRootAux_RootLeValue {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin n) (value : α) (heap : CompleteTree α n) (h₁ : HeapPredicate heap le) (h₂ : n > 0) (h₃ : le (root heap h₂) value) : HeapPredicate.leOrLeaf le (root heap h₂) (heapReplaceElementAt le index value heap h₂).snd := by
+  unfold heapReplaceElementAt
+  split
+  case isTrue => exact heapReplaceRootIsHeapLeRootAux le value heap h₁ h₂ h₃
+  case isFalse hi =>
+    split
+    rename_i o p v l r h₆ h₇ h₈ index h₁ h₅
+    sorry
+
+private theorem CompleteTree.heapReplaceElementAtIsHeapLeRootAux_ValueLeRoot {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin n) (value : α) (heap : CompleteTree α n) (h₁ : HeapPredicate heap le) (h₂ : n > 0) (h₃ : le value (root heap h₂)) : HeapPredicate.leOrLeaf le value (heapReplaceElementAt le index value heap h₂).snd :=
+  sorry
+
 theorem CompleteTree.heapReplaceElementAtIsHeap {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin n) (value : α) (heap : CompleteTree α n) (h₁ : n > 0) (h₂ : HeapPredicate heap le) (h₃ : transitive_le le) (h₄ : total_le le) : HeapPredicate (heap.heapReplaceElementAt le index value h₁).snd le := by
   unfold heapReplaceElementAt
   split
@@ -932,8 +944,17 @@ theorem CompleteTree.heapReplaceElementAtIsHeap {α : Type u} {n : Nat} (le : α
       case right.right =>
         have h₁₁: HeapPredicate (heapReplaceElementAt le ⟨index.val - o - 1, (by omega)⟩ v r (by omega)).snd le :=
           (heapReplaceElementAtIsHeap le ⟨index.val - o - 1, (by omega)⟩ v r _ h₂.right.left h₃ h₄)
-
-        sorry
+        cases h₁₂ : le v (r.root (by omega : 0 < p))
+        case false =>
+          have h₁₃ := h₂.right.right.right
+          unfold HeapPredicate.leOrLeaf at h₁₃
+          cases p
+          omega
+          exact absurd h₁₃ ((Bool.eq_false_iff).mp h₁₂)
+        case true =>
+          have h₁₃ := heapReplaceElementAtIsHeapLeRootAux_ValueLeRoot le ⟨index.val - o - 1, (by omega)⟩ v r h₂.right.left (by omega) h₁₂
+          apply HeapPredicate.leOrLeaf_transitive h₃ _ h₁₃
+          exact h₁₀
     case false.isTrue => sorry
     case true.isFalse => sorry
     case true.isTrue => sorry
