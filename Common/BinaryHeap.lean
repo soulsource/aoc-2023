@@ -916,7 +916,28 @@ theorem CompleteTree.heapReplaceElementAtIsHeap {α : Type u} {n : Nat} (le : α
   split
   case isTrue h₅ =>
     exact heapReplaceRootIsHeap le value heap h₁ h₂ h₃ h₄
-  case isFalse h₅ => sorry
+  case isFalse h₅ =>
+    split
+    rename_i o p v l r h₆ h₇ h₈ index h₁ h₅
+    cases h₁₀ : le v value <;> simp (config := {ground := true}) -- this could probably be solved without this split, but readability...
+    <;> split
+    <;> rename_i h -- h is the same name as used in the function
+    <;> unfold HeapPredicate at h₂ ⊢
+    <;> simp[h₂]
+    case false.isFalse =>
+      have h₁₀ := not_le_imp_le h₄ v value (Bool.eq_false_iff.mp h₁₀)
+      apply And.intro <;> try apply And.intro
+      case left => exact heapReplaceElementAtIsHeap le ⟨index.val - o - 1, _⟩ v r (by omega) h₂.right.left h₃ h₄
+      case right.left => exact HeapPredicate.leOrLeaf_transitive h₃ h₁₀ h₂.right.right.left
+      case right.right =>
+        have h₁₁: HeapPredicate (heapReplaceElementAt le ⟨index.val - o - 1, (by omega)⟩ v r (by omega)).snd le :=
+          (heapReplaceElementAtIsHeap le ⟨index.val - o - 1, (by omega)⟩ v r _ h₂.right.left h₃ h₄)
+
+        sorry
+    case false.isTrue => sorry
+    case true.isFalse => sorry
+    case true.isTrue => sorry
+
 
 /--Removes the element at a given index. Use `CompleteTree.indexOf` to find the respective index.-/
 def CompleteTree.heapRemoveAt {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin (n+1)) (heap : CompleteTree α (n+1)) : α × CompleteTree α n :=
