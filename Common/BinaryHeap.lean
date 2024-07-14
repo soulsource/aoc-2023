@@ -546,8 +546,7 @@ theorem CompleteTree.popLastLeavesRoot (heap : CompleteTree α (n+1)) (h₁ : n 
       case succ oo _ _ _ =>
         simp -- redundant, but makes goal easier to read
         rw[rootSeesThroughCast2 oo p _ (by simp_arith) _]
-        unfold root
-        simp
+        apply root_unfold
     else by
       simp[h₄]
       cases p
@@ -556,8 +555,7 @@ theorem CompleteTree.popLastLeavesRoot (heap : CompleteTree α (n+1)) (h₁ : n 
         simp_arith (config := {ground := true})[h₁] at h₄ -- the second term in h₄ is decidable and True. What remains is ¬(0 < o), or o = 0
       case succ pp hp =>
         simp_arith
-        unfold root
-        simp
+        apply root_unfold
 
 
 set_option linter.unusedVariables false in -- Lean 4.2 thinks h₁ is unused. It very much is not unused.
@@ -690,26 +688,16 @@ private theorem CompleteTree.heapReplaceRootReturnsRoot {α : Type u} {n : Nat} 
   simp
   cases o <;> simp
   case zero =>
-    unfold root
-    simp
+    exact root_unfold v l r h₃ h₄ h₅ h₁
   case succ =>
     cases p <;> simp
     case zero =>
       cases le value (root l _)
-      <;> simp
-      <;> unfold root
-      <;> simp
+      <;> simp[root_unfold]
     case succ =>
       cases le value (root l _) <;> cases le value (root r _)
-      <;> simp
-      case true.true =>
-        unfold root
-        simp
-      case true.false | false.true | false.false =>
-        cases le (root l _) (root r _)
-        <;> simp
-        <;> unfold root
-        <;> simp
+      <;> cases le (root l _) (root r _)
+      <;> simp[root_unfold]
 
 private theorem CompleteTree.heapReplaceRootPossibleRootValuesAuxL {α : Type u} (heap : CompleteTree α n) (h₁ : n > 1) : 0 < heap.leftLen (Nat.lt_trans (Nat.lt_succ_self 0) h₁) :=
   match h₅: n, heap with
@@ -732,10 +720,8 @@ private theorem CompleteTree.heapReplaceRootPossibleRootValues1 {α : Type u} (l
   generalize (h₁.substr (Nat.lt_succ_self 0) : n > 0) = hx
   split
   rename_i o p v l r _ _ _ h₁
-  have h₃ : o + p = 0 := Nat.succ.inj h₁
-  have h₃ : o = 0 := (Nat.add_eq_zero.mp h₃).left
-  unfold root
-  simp_all
+  have h₃ : o = 0 := (Nat.add_eq_zero.mp $ Nat.succ.inj h₁).left
+  simp[h₃, root_unfold]
 
 private theorem CompleteTree.heapReplaceRootPossibleRootValues2 {α : Type u} (le : α → α → Bool) (value : α) (heap : CompleteTree α n) (h₁ : n = 2) :
 have h₂ : 0 < n := Nat.lt_trans (Nat.lt_succ_self 0) $  h₁.substr (Nat.lt_succ_self 1)
@@ -946,6 +932,24 @@ def CompleteTree.heapRemoveAt {α : Type u} {n : Nat} (le : α → α → Bool) 
       case zero => exact absurd ((Nat.le_zero_eq index.val).mp (Nat.le_of_lt_succ ((Nat.zero_add 1).subst index.isLt))) p
     let index : Fin n := ⟨index, Nat.lt_of_le_of_ne (Nat.le_of_lt_succ index.isLt) p⟩
     heapReplaceElementAt le index l.fst l.snd n_gt_zero
+
+def CompleteTree.heapRemoveRoot {α : Type u} {n : Nat} (le : α → α → Bool) (heap : CompleteTree α (n+1)) : α × CompleteTree α n :=
+  let l := heap.popLast
+  if p : n > 0 then
+    heapReplaceRoot le l.fst l.snd p
+  else
+    l
+
+theorem CompleteTree.heapRemoveRootIsHeap {α : Type u} {n : Nat} (le : α → α → Bool) (heap : CompleteTree α (n+1)) (h₁ : HeapPredicate heap le) (wellDefinedLe : transitive_le le ∧ total_le le) : HeapPredicate (heap.heapRemoveRoot le).snd le := by
+  have h₂ : HeapPredicate heap.popLast.snd le := popLastIsHeap h₁ wellDefinedLe.left wellDefinedLe.right
+  unfold heapRemoveRoot
+  cases n <;> simp[h₂, heapReplaceRootIsHeap, wellDefinedLe]
+
+def BinaryHeap.RemoveRoot {α : Type u} {le : α → α → Bool} {n : Nat} : (BinaryHeap α le (n+1)) → (α × BinaryHeap α le n)
+| {tree, valid, wellDefinedLe} =>
+  let result := tree.heapRemoveRoot le
+  let resultValid := CompleteTree.heapRemoveRootIsHeap le tree valid wellDefinedLe
+  (result.fst, { tree := result.snd, valid := resultValid, wellDefinedLe})
 
 -------------------------------------------------------------------------------------------------------
 
