@@ -397,10 +397,11 @@ def CompleteTree.indexOfAux {α : Type u} (heap : CompleteTree α o) (pred : α 
         (right.indexOfAux pred (currentIndex + n + 1)).map ((λ a ↦ Fin.ofNat' a (by simp_arith)) : _ → Fin (n+m+1+currentIndex))
       found_right
 
-/--Finds the first occurance of a given element in the heap and returns its index.-/
+/--Finds the first occurance of a given element in the heap and returns its index. Indices are depth first.-/
 def CompleteTree.indexOf {α : Type u} (heap : CompleteTree α o) (pred : α → Bool) : Option (Fin o) :=
   indexOfAux heap pred 0
 
+/--Returns the lement at the given index. Indices are depth first.-/
 def CompleteTree.get {α : Type u} {n : Nat} (index : Fin (n+1)) (heap : CompleteTree α (n+1)) : α :=
   match h₁ : index, h₂ : n, heap with
   | 0, (_+_), .branch v _ _ _ _ _ => v
@@ -418,11 +419,41 @@ def CompleteTree.get {α : Type u} {n : Nat} (index : Fin (n+1)) (heap : Complet
       match p with
       | (pp + 1) => get ⟨j - o, h₆⟩ r
 
-
 theorem two_n_not_zero_n_not_zero (n : Nat) (p : ¬2*n = 0) : (¬n = 0) := by
   cases n
   case zero => contradiction
   case succ => simp
+
+--TODO: Make this use numbers instead of traversing the actual tree.
+def CompleteTree.indexOfLast {α : Type u} (heap : CompleteTree α (o+1)) : Fin (o+1) :=
+  match o, heap with
+  | (n+m), .branch _ l r _ _ _ =>
+    if p : 0 = (n+m) then
+      0
+    else
+      let rightIsFull : Bool := (m+1).nextPowerOfTwo = m+1
+      have m_gt_0_or_rightIsFull : m > 0 ∨ rightIsFull := by cases m <;> simp_arith (config := { ground:=true })[rightIsFull]
+      if h₁ : m < n ∧ rightIsFull then
+        match n with
+        | .zero => absurd (Nat.zero_lt_of_lt h₁.left) (Nat.lt_irrefl 0)
+        | .succ nn => (l.indexOfLast.succ.castAdd m).cast (by simp_arith)
+      else
+        have : m > 0 := by
+          cases m_gt_0_or_rightIsFull
+          case inl => assumption
+          case inr h =>
+            simp_arith [h] at h₁
+            cases n
+            case zero =>
+              simp[Nat.zero_lt_of_ne_zero] at p
+              exact Nat.zero_lt_of_ne_zero (Ne.symm p)
+            case succ q _ _ _ =>
+              cases m
+              . exact False.elim $ Nat.not_succ_le_zero q h₁
+              . simp_arith
+        match m with
+        | .succ mm =>
+          ⟨r.indexOfLast.val + 1 + n, by omega⟩
 
 def CompleteTree.popLast {α : Type u} (heap : CompleteTree α (o+1)) : (α × CompleteTree α o) :=
   match o, heap with
@@ -930,8 +961,28 @@ private theorem CompleteTree.heapReplaceElementAtIsHeapLeRootAux_RootLeValue {α
       split
       <;> simp![reflexive_le, h₄]
 
-private theorem CompleteTree.heapReplaceElementAtIsHeapLeRootAux_ValueLeRoot {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin n) (value : α) (heap : CompleteTree α n) (h₁ : HeapPredicate heap le) (h₂ : n > 0) (h₃ : le value (root heap h₂)) : HeapPredicate.leOrLeaf le value (heapReplaceElementAt le index value heap h₂).snd :=
-  sorry
+private theorem CompleteTree.heapReplaceElementAtIsHeapLeRootAux_ValueLeRoot {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin n) (value : α) (heap : CompleteTree α n) (h₁ : HeapPredicate heap le) (h₂ : n > 0) (h₃ : le value (root heap h₂)) (h₄ : total_le le) (h₅ : transitive_le le) : HeapPredicate.leOrLeaf le value (heapReplaceElementAt le index value heap h₂).snd := by
+  unfold heapReplaceElementAt
+  split
+  <;> rename_i h₉
+  case isTrue =>
+    unfold heapReplaceRoot
+    split
+    rename_i o p v l r h₆ h₇ h₈ h₂
+    cases o <;> cases p <;> simp![reflexive_le, h₄]
+    <;> unfold HeapPredicate at h₁
+    <;> have h₁₀ : le value $ l.root (by omega) := h₅ value v (l.root _) ⟨h₃, h₁.right.right.left⟩
+    simp![reflexive_le, h₄, h₁₀]
+    have h₁₁ : le value $ r.root (by omega) := h₅ value v (r.root _) ⟨h₃, h₁.right.right.right⟩
+    simp![reflexive_le, h₄, h₁₀, h₁₁]
+  case isFalse =>
+    split
+    rename_i o p v l r h₆ h₇ h₈ index h₂ hi
+    cases le v value
+    <;> simp (config := {ground := true})[root_unfold] at h₃ ⊢
+    <;> split
+    <;> unfold HeapPredicate.leOrLeaf
+    <;> simp[root_unfold, reflexive_le, h₄, h₃]
 
 theorem CompleteTree.heapReplaceElementAtIsHeap {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin n) (value : α) (heap : CompleteTree α n) (h₁ : n > 0) (h₂ : HeapPredicate heap le) (h₃ : transitive_le le) (h₄ : total_le le) : HeapPredicate (heap.heapReplaceElementAt le index value h₁).snd le := by
   unfold heapReplaceElementAt
@@ -961,7 +1012,7 @@ theorem CompleteTree.heapReplaceElementAtIsHeap {α : Type u} {n : Nat} (le : α
           exact absurd (Nat.lt_succ.mp index.isLt) h
           exact absurd h₂.right.right.right ((Bool.eq_false_iff).mp h₁₂)
         case true =>
-          have h₁₃ := heapReplaceElementAtIsHeapLeRootAux_ValueLeRoot le ⟨index.val - o - 1, (by omega)⟩ v r h₂.right.left (by omega) h₁₂
+          have h₁₃ := heapReplaceElementAtIsHeapLeRootAux_ValueLeRoot le ⟨index.val - o - 1, (by omega)⟩ v r h₂.right.left (by omega) h₁₂ h₄ h₃
           apply HeapPredicate.leOrLeaf_transitive h₃ _ h₁₃
           exact h₁₀
     case false.isTrue =>
@@ -979,7 +1030,7 @@ theorem CompleteTree.heapReplaceElementAtIsHeap {α : Type u} {n : Nat} (le : α
           contradiction -- h₁₄ is False
           exact absurd h₂.right.right.left ((Bool.eq_false_iff).mp h₁₂)
         case true =>
-          have h₁₃ := heapReplaceElementAtIsHeapLeRootAux_ValueLeRoot le ⟨index.val - 1, (by omega)⟩ v l h₂.left (by omega) h₁₂
+          have h₁₃ := heapReplaceElementAtIsHeapLeRootAux_ValueLeRoot le ⟨index.val - 1, (by omega)⟩ v l h₂.left (by omega) h₁₂ h₄ h₃
           apply HeapPredicate.leOrLeaf_transitive h₃ _ h₁₃
           exact h₁₀
     case true.isFalse =>
@@ -997,7 +1048,7 @@ theorem CompleteTree.heapReplaceElementAtIsHeap {α : Type u} {n : Nat} (le : α
           contradiction -- h₁₄ is False
           exact h₂.right.right.right
         case true =>
-          have h₁₃ := heapReplaceElementAtIsHeapLeRootAux_ValueLeRoot le ⟨index.val - o - 1, (by omega)⟩ value r h₂.right.left (by omega) h₁₂
+          have h₁₃ := heapReplaceElementAtIsHeapLeRootAux_ValueLeRoot le ⟨index.val - o - 1, (by omega)⟩ value r h₂.right.left (by omega) h₁₂ h₄ h₃
           apply HeapPredicate.leOrLeaf_transitive h₃ _ h₁₃
           exact h₁₀
     case true.isTrue =>
@@ -1015,24 +1066,9 @@ theorem CompleteTree.heapReplaceElementAtIsHeap {α : Type u} {n : Nat} (le : α
           contradiction -- h₁₄ is False
           exact h₂.right.right.left
         case true =>
-          have h₁₃ := heapReplaceElementAtIsHeapLeRootAux_ValueLeRoot le ⟨index.val - 1, (by omega)⟩ value l h₂.left (by omega) h₁₂
+          have h₁₃ := heapReplaceElementAtIsHeapLeRootAux_ValueLeRoot le ⟨index.val - 1, (by omega)⟩ value l h₂.left (by omega) h₁₂ h₄ h₃
           apply HeapPredicate.leOrLeaf_transitive h₃ _ h₁₃
           exact h₁₀
-
-/--Removes the element at a given index. Use `CompleteTree.indexOf` to find the respective index.-/
-def CompleteTree.heapRemoveAt {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin (n+1)) (heap : CompleteTree α (n+1)) : α × CompleteTree α n :=
-  --Since we cannot even temporarily break the completeness property, we go with the
-  --version from Wikipedia: We first remove the last element, and then update values in the tree
-  let l := heap.popLast
-  if p : index = n then
-    l
-  else
-    have n_gt_zero : n > 0 := by
-      cases n
-      case succ nn => exact Nat.zero_lt_of_ne_zero $ Nat.succ_ne_zero nn
-      case zero => exact absurd ((Nat.le_zero_eq index.val).mp (Nat.le_of_lt_succ ((Nat.zero_add 1).subst index.isLt))) p
-    let index : Fin n := ⟨index, Nat.lt_of_le_of_ne (Nat.le_of_lt_succ index.isLt) p⟩
-    heapReplaceElementAt le index l.fst l.snd n_gt_zero
 
 def CompleteTree.heapRemoveRoot {α : Type u} {n : Nat} (le : α → α → Bool) (heap : CompleteTree α (n+1)) : α × CompleteTree α n :=
   let l := heap.popLast
@@ -1052,14 +1088,58 @@ def BinaryHeap.RemoveRoot {α : Type u} {le : α → α → Bool} {n : Nat} : (B
   let resultValid := CompleteTree.heapRemoveRootIsHeap le tree valid wellDefinedLe
   (result.fst, { tree := result.snd, valid := resultValid, wellDefinedLe})
 
+/--Removes the element at a given index. Use `CompleteTree.indexOf` to find the respective index.-/
+def CompleteTree.heapRemoveAt {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin (n+1)) (heap : CompleteTree α (n+1)) : α × CompleteTree α n :=
+  --Since we cannot even temporarily break the completeness property, we go with the
+  --version from Wikipedia: We first remove the last element, and then update values in the tree
+  --indices are depth first, but "last" means last element of the complete tree.
+  --sooo:
+  if index_ne_zero : index = 0 then
+    heapRemoveRoot le heap
+  else
+    let lastIndex := heap.indexOfLast
+    let l := heap.popLast
+    if p : index = lastIndex then
+      l
+    else
+      have n_gt_zero : n > 0 := by
+        cases n
+        case succ nn => exact Nat.zero_lt_succ nn
+        case zero => omega
+      if index_lt_lastIndex : index ≥ lastIndex then
+        let index := index.pred index_ne_zero
+        heapReplaceElementAt le index l.fst l.snd n_gt_zero
+      else
+        let h₁ : index < n := by omega
+        let index : Fin n := ⟨index, h₁⟩
+        heapReplaceElementAt le index l.fst l.snd n_gt_zero
+
+theorem CompleteTree.heapRemoveAtIsHeap {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin (n+1)) (heap : CompleteTree α (n+1)) (h₁ : HeapPredicate heap le) (wellDefinedLe : transitive_le le ∧ total_le le) : HeapPredicate (heap.heapRemoveAt le index).snd le := by
+  have h₂ : HeapPredicate heap.popLast.snd le := popLastIsHeap h₁ wellDefinedLe.left wellDefinedLe.right
+  unfold heapRemoveAt
+  split
+  case isTrue => exact heapRemoveRootIsHeap le heap h₁ wellDefinedLe
+  case isFalse h₃ =>
+    cases h: (index = heap.indexOfLast : Bool)
+    <;> simp_all
+    split
+    <;> apply heapReplaceElementAtIsHeap <;> simp_all
+
+def BinaryHeap.RemoveAt {α : Type u} {le : α → α → Bool} {n : Nat} : (BinaryHeap α le (n+1)) → (Fin (n+1)) → (α × BinaryHeap α le n)
+| {tree, valid, wellDefinedLe}, index =>
+  let result := tree.heapRemoveAt le index
+  let resultValid := CompleteTree.heapRemoveAtIsHeap le index tree valid wellDefinedLe
+  (result.fst, { tree := result.snd, valid := resultValid, wellDefinedLe})
+
 -------------------------------------------------------------------------------------------------------
 
 private def TestHeap :=
-  let ins : {n: Nat} → Nat → CompleteTree Nat n → CompleteTree Nat (n+1) := λ x y ↦ CompleteTree.heapInsert (.<.) x y
+  let ins : {n: Nat} → Nat → CompleteTree Nat n → CompleteTree Nat (n+1) := λ x y ↦ CompleteTree.heapInsert (.≤.) x y
   ins 5 CompleteTree.empty
   |> ins 3
   |> ins 7
   |> ins 12
+  |> ins 13
   |> ins 2
   |> ins 8
   |> ins 97
@@ -1075,4 +1155,18 @@ private def TestHeap :=
 
 #eval TestHeap
 #eval TestHeap.popLast
-#eval TestHeap.indexOf (71 = ·)
+#eval TestHeap.indexOf (13 = ·)
+
+#eval TestHeap.heapRemoveAt (.≤.) 7
+
+private def TestHeap2 :=
+  let ins : {n: Nat} → Nat → CompleteTree Nat n → CompleteTree Nat (n+1) := λ x y ↦ CompleteTree.heapInsert (.≤.) x y
+  ins 5 CompleteTree.empty
+  |> ins 1
+  |> ins 2
+  |> ins 3
+
+
+#eval TestHeap2
+#eval TestHeap2.heapRemoveAt (.≤.) 2
+#eval TestHeap2.heapReplaceElementAt (.≤.) 3 27 (by omega)
