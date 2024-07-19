@@ -159,7 +159,7 @@ private theorem power_of_two_mul_two_le {n m : Nat} (h₁ : (n+1).isPowerOfTwo) 
     assumption
 
 /--Adds a new element to a given CompleteTree.-/
-def CompleteTree.heapInsert (le : α → α → Bool) (elem : α) (heap : CompleteTree α o) : CompleteTree α (o+1) :=
+def CompleteTree.heapPush (le : α → α → Bool) (elem : α) (heap : CompleteTree α o) : CompleteTree α (o+1) :=
   match o, heap with
   | 0, .leaf => CompleteTree.branch elem (CompleteTree.leaf) (CompleteTree.leaf) (by simp) (by simp) (by simp[Nat.one_isPowerOfTwo])
   | (n+m+1), .branch a left right p max_height_difference subtree_complete =>
@@ -174,7 +174,7 @@ def CompleteTree.heapInsert (le : α → α → Bool) (elem : α) (heap : Comple
                                rewrite[s]
                                simp[r]
       have difference_decreased := Nat.le_succ_of_le $ Nat.le_succ_of_le max_height_difference
-      let result := branch a left (right.heapInsert le elem) (q) difference_decreased (by simp[(Nat.power_of_two_iff_next_power_eq (n+1)), r])
+      let result := branch a left (right.heapPush le elem) (q) difference_decreased (by simp[(Nat.power_of_two_iff_next_power_eq (n+1)), r])
       result
     else
       have q : m ≤ n+1 := by apply (Nat.le_of_succ_le)
@@ -206,7 +206,7 @@ def CompleteTree.heapInsert (le : α → α → Bool) (elem : α) (heap : Comple
         case inr h₁ => simp[←Nat.power_of_two_iff_next_power_eq, leftIsFull] at h₁
                        simp[h₁] at subtree_complete
                        exact power_of_two_mul_two_lt subtree_complete max_height_difference h₁
-      let result := branch a (left.heapInsert le elem) right q still_in_range (Or.inr right_is_power_of_two)
+      let result := branch a (left.heapPush le elem) right q still_in_range (Or.inr right_is_power_of_two)
       have letMeSpellItOutForYou : n + 1 + m + 1 = n + m + 1 + 1 := by simp_arith
       letMeSpellItOutForYou ▸ result
 
@@ -243,8 +243,8 @@ private theorem CompleteTree.rootSeesThroughCast2
     revert heap h₁ h₂ h₃
     assumption
 
-theorem CompleteTree.heapInsertRootSameOrElem (elem : α) (heap : CompleteTree α o) (lt : α → α → Bool) (h₂ : 0 < o): (CompleteTree.root (heap.heapInsert lt elem) (Nat.succ_pos o) = elem) ∨ (CompleteTree.root (heap.heapInsert lt elem) (Nat.succ_pos o) = CompleteTree.root heap h₂) := by
-  unfold heapInsert
+theorem CompleteTree.heapPushRootSameOrElem (elem : α) (heap : CompleteTree α o) (lt : α → α → Bool) (h₂ : 0 < o): (CompleteTree.root (heap.heapPush lt elem) (Nat.succ_pos o) = elem) ∨ (CompleteTree.root (heap.heapPush lt elem) (Nat.succ_pos o) = CompleteTree.root heap h₂) := by
+  unfold heapPush
   split --match o, heap
   contradiction
   simp
@@ -257,10 +257,10 @@ theorem CompleteTree.heapInsertRootSameOrElem (elem : α) (heap : CompleteTree �
     cases (lt elem v)
      <;> simp[instDecidableEqBool, Bool.decEq, CompleteTree.root]
 
-theorem CompleteTree.heapInsertEmptyElem (elem : α) (heap : CompleteTree α o) (lt : α → α → Bool) (h₂ : ¬0 < o) : (CompleteTree.root (heap.heapInsert lt elem) (Nat.succ_pos o) = elem) :=
+theorem CompleteTree.heapPushEmptyElem (elem : α) (heap : CompleteTree α o) (lt : α → α → Bool) (h₂ : ¬0 < o) : (CompleteTree.root (heap.heapPush lt elem) (Nat.succ_pos o) = elem) :=
   have : o = 0 := Nat.eq_zero_of_le_zero $ (Nat.not_lt_eq 0 o).mp h₂
   match o, heap with
-  | 0, .leaf => by simp[CompleteTree.heapInsert, root]
+  | 0, .leaf => by simp[CompleteTree.heapPush, root]
 
 
 theorem HeapPredicate.leOrLeaf_transitive (h₁ : transitive_le le) : le a b → HeapPredicate.leOrLeaf le b h → HeapPredicate.leOrLeaf le a h := by
@@ -293,60 +293,60 @@ private theorem HeapPredicate.seesThroughCast
 
 mutual
 /--
-  Helper for CompleteTree.heapInsertIsHeap, to make one function out of both branches.
+  Helper for CompleteTree.heapPushIsHeap, to make one function out of both branches.
   Sorry for the ugly signature, but this was the easiest thing to extract.
   -/
-private theorem CompleteTree.heapInsertIsHeapAux {α : Type u} (le : α → α → Bool) (n m : Nat) (v elem : α) (l : CompleteTree α n) (r : CompleteTree α m) (h₁ : HeapPredicate l le ∧ HeapPredicate r le ∧ HeapPredicate.leOrLeaf le v l ∧ HeapPredicate.leOrLeaf le v r) (h₂ : transitive_le le) (h₃ : total_le le): HeapPredicate l le ∧
+private theorem CompleteTree.heapPushIsHeapAux {α : Type u} (le : α → α → Bool) (n m : Nat) (v elem : α) (l : CompleteTree α n) (r : CompleteTree α m) (h₁ : HeapPredicate l le ∧ HeapPredicate r le ∧ HeapPredicate.leOrLeaf le v l ∧ HeapPredicate.leOrLeaf le v r) (h₂ : transitive_le le) (h₃ : total_le le): HeapPredicate l le ∧
   let smaller := (if le elem v then elem else v)
   let larger := (if le elem v then v else elem)
-  HeapPredicate (heapInsert le larger r) le
+  HeapPredicate (heapPush le larger r) le
   ∧ HeapPredicate.leOrLeaf le smaller l
-  ∧ HeapPredicate.leOrLeaf le smaller (heapInsert le larger r)
+  ∧ HeapPredicate.leOrLeaf le smaller (heapPush le larger r)
   := by
   cases h₆ : (le elem v) <;> simp only [Bool.false_eq_true, reduceIte]
   case true =>
-    have h₇ : (HeapPredicate (CompleteTree.heapInsert le v r) le) := CompleteTree.heapInsertIsHeap h₁.right.left h₂ h₃
+    have h₇ : (HeapPredicate (CompleteTree.heapPush le v r) le) := CompleteTree.heapPushIsHeap h₁.right.left h₂ h₃
     simp only [true_and, h₁, h₇, HeapPredicate.leOrLeaf_transitive h₂ h₆ h₁.right.right.left]
     cases m
     case zero =>
-      have h₈  := heapInsertEmptyElem v r le (Nat.not_lt_zero 0)
+      have h₈  := heapPushEmptyElem v r le (Nat.not_lt_zero 0)
       simp only [HeapPredicate.leOrLeaf, Nat.succ_eq_add_one, Nat.reduceAdd, h₈]
       assumption
     case succ _ =>
       simp only [HeapPredicate.leOrLeaf]
-      cases heapInsertRootSameOrElem v r le (Nat.succ_pos _)
+      cases heapPushRootSameOrElem v r le (Nat.succ_pos _)
       <;> rename_i h₇
       <;> rw[h₇]
       . assumption
       apply h₂ elem v
       exact ⟨h₆, h₁.right.right.right⟩
   case false =>
-    have h₇ : (HeapPredicate (CompleteTree.heapInsert le elem r) le) := CompleteTree.heapInsertIsHeap h₁.right.left h₂ h₃
+    have h₇ : (HeapPredicate (CompleteTree.heapPush le elem r) le) := CompleteTree.heapPushIsHeap h₁.right.left h₂ h₃
     simp only [true_and, h₁, h₇]
     have h₈ : le v elem := not_le_imp_le h₃ elem v (by simp only [h₆, Bool.false_eq_true, not_false_eq_true])
     cases m
     case zero =>
-      have h₇ := heapInsertEmptyElem elem r le (Nat.not_lt_zero 0)
+      have h₇ := heapPushEmptyElem elem r le (Nat.not_lt_zero 0)
       simp only [HeapPredicate.leOrLeaf, Nat.succ_eq_add_one, Nat.reduceAdd, h₇]
       assumption
     case succ _ =>
-      cases heapInsertRootSameOrElem elem r le (Nat.succ_pos _)
+      cases heapPushRootSameOrElem elem r le (Nat.succ_pos _)
       <;> rename_i h₉
       <;> simp only [HeapPredicate.leOrLeaf, Nat.succ_eq_add_one, h₈, h₉]
       exact h₁.right.right.right
 
-theorem CompleteTree.heapInsertIsHeap {α : Type u} {elem : α} {heap : CompleteTree α o} {le : α → α → Bool} (h₁ : HeapPredicate heap le) (h₂ : transitive_le le) (h₃ : total_le le) : HeapPredicate (heap.heapInsert le elem) le := by
-  unfold heapInsert
+theorem CompleteTree.heapPushIsHeap {α : Type u} {elem : α} {heap : CompleteTree α o} {le : α → α → Bool} (h₁ : HeapPredicate heap le) (h₂ : transitive_le le) (h₃ : total_le le) : HeapPredicate (heap.heapPush le elem) le := by
+  unfold heapPush
   split -- match o, heap with
   trivial
   case h_2 n m v l r m_le_n _ _ =>
     simp
     split -- if h₅ : m < n ∧ Nat.nextPowerOfTwo (n + 1) = n + 1 then
     case' isTrue =>
-      have h := heapInsertIsHeapAux le n m v elem l r h₁ h₂ h₃
+      have h := heapPushIsHeapAux le n m v elem l r h₁ h₂ h₃
     case' isFalse =>
       apply HeapPredicate.seesThroughCast <;> try simp_arith[h₂] --gets rid of annoying cast.
-      have h := heapInsertIsHeapAux le m n v elem r l (And.intro h₁.right.left $ And.intro h₁.left $ And.intro h₁.right.right.right h₁.right.right.left) h₂ h₃
+      have h := heapPushIsHeapAux le m n v elem r l (And.intro h₁.right.left $ And.intro h₁.left $ And.intro h₁.right.right.right h₁.right.right.left) h₂ h₃
     all_goals
       unfold HeapPredicate
       cases h₆ : (le elem v)
@@ -356,8 +356,8 @@ end
 
 def BinaryHeap.insert {α : Type u} {lt : α → α → Bool} {n : Nat} : α → BinaryHeap α lt n → BinaryHeap α lt (n+1)
 | elem, BinaryHeap.mk tree valid wellDefinedLe =>
-  let valid := tree.heapInsertIsHeap valid wellDefinedLe.left wellDefinedLe.right
-  let tree := tree.heapInsert lt elem
+  let valid := tree.heapPushIsHeap valid wellDefinedLe.left wellDefinedLe.right
+  let tree := tree.heapPush lt elem
   {tree, valid, wellDefinedLe}
 
 /--Helper function for CompleteTree.indexOf.-/
@@ -467,7 +467,7 @@ private theorem CompleteTree.stillInRange {n m : Nat} (r : ¬(m < n ∧ ((m+1).n
   | inr h₁ => simp (config := { zetaDelta := true }) only [← Nat.power_of_two_iff_next_power_eq, decide_eq_true_eq] at h₁
               apply power_of_two_mul_two_le <;> assumption
 
-def CompleteTree.removeLast {α : Type u} (heap : CompleteTree α (o+1)) : (CompleteTree α o × α) :=
+private def CompleteTree.removeLast {α : Type u} (heap : CompleteTree α (o+1)) : (CompleteTree α o × α) :=
   match o, heap with
   | (n+m), .branch a (left : CompleteTree α n) (right : CompleteTree α m) m_le_n max_height_difference subtree_complete =>
     if p : 0 = (n+m) then
@@ -495,7 +495,7 @@ def CompleteTree.removeLast {α : Type u} (heap : CompleteTree α (o+1)) : (Comp
         have still_in_range : n < 2 * (l+1) := h₂.substr (p := λx ↦ n < 2 * x) $ stillInRange r m_le_n m_gt_0 leftIsFull max_height_difference
         (h₂▸CompleteTree.branch a left newRight (Nat.le_of_succ_le (h₂▸m_le_n)) still_in_range (Or.inl leftIsFull), res)
 
-theorem CompleteTree.castZeroHeap (n m : Nat) (heap : CompleteTree α 0) (h₁ : 0=n+m) {le : α → α → Bool} : HeapPredicate (h₁ ▸ heap) le := by
+private theorem CompleteTree.castZeroHeap (n m : Nat) (heap : CompleteTree α 0) (h₁ : 0=n+m) {le : α → α → Bool} : HeapPredicate (h₁ ▸ heap) le := by
   have h₂ : heap = (CompleteTree.empty : CompleteTree α 0) := by
     simp[empty]
     match heap with
@@ -530,13 +530,13 @@ private theorem HeapPredicate.seesThroughCast2
     assumption
 
 -- If there is only one element left, the result is a leaf.
-theorem CompleteTree.removeLastLeaf (heap : CompleteTree α 1) : heap.removeLast.fst = CompleteTree.leaf := by
+private theorem CompleteTree.removeLastLeaf (heap : CompleteTree α 1) : heap.removeLast.fst = CompleteTree.leaf := by
   let l := heap.removeLast.fst
   have h₁ : l = CompleteTree.leaf := match l with
     | .leaf => rfl
   exact h₁
 
-theorem CompleteTree.removeLastLeavesRoot (heap : CompleteTree α (n+1)) (h₁ : n > 0) : heap.root (Nat.zero_lt_of_ne_zero $ Nat.succ_ne_zero n) = heap.removeLast.fst.root (h₁) := by
+private theorem CompleteTree.removeLastLeavesRoot (heap : CompleteTree α (n+1)) (h₁ : n > 0) : heap.root (Nat.zero_lt_of_ne_zero $ Nat.succ_ne_zero n) = heap.removeLast.fst.root (h₁) := by
   unfold removeLast
   split
   rename_i o p v l r _ _ _
@@ -561,9 +561,7 @@ theorem CompleteTree.removeLastLeavesRoot (heap : CompleteTree α (n+1)) (h₁ :
         simp_arith
         apply root_unfold
 
-
-set_option linter.unusedVariables false in -- Lean 4.2 thinks h₁ is unused. It very much is not unused.
-theorem CompleteTree.removeLastIsHeap {heap : CompleteTree α (o+1)} {le : α → α → Bool} (h₁ : HeapPredicate heap le) (h₂ : transitive_le le) (h₃ : total_le le) : HeapPredicate (heap.removeLast.fst) le := by
+private theorem CompleteTree.removeLastIsHeap {heap : CompleteTree α (o+1)} {le : α → α → Bool} (h₁ : HeapPredicate heap le) (h₂ : transitive_le le) (h₃ : total_le le) : HeapPredicate (heap.removeLast.fst) le := by
   unfold removeLast
   split
   rename_i n m v l r _ _ _
@@ -615,7 +613,7 @@ theorem CompleteTree.removeLastIsHeap {heap : CompleteTree α (o+1)} {le : α �
                 exact h₁.right.right.right
               h₉
 
-def BinaryHeap.removeLast {α : Type u} {le : α → α → Bool} {n : Nat} : (BinaryHeap α le (n+1)) → BinaryHeap α le n × α
+private def BinaryHeap.removeLast {α : Type u} {le : α → α → Bool} {n : Nat} : (BinaryHeap α le (n+1)) → BinaryHeap α le n × α
 | {tree, valid, wellDefinedLe} =>
   let result := tree.removeLast
   let resultValid := CompleteTree.removeLastIsHeap valid wellDefinedLe.left wellDefinedLe.right
@@ -1038,22 +1036,22 @@ theorem CompleteTree.heapUpdateAtIsHeap {α : Type u} {n : Nat} (le : α → α 
           apply HeapPredicate.leOrLeaf_transitive h₃ _ h₁₃
           exact h₁₀
 
-def CompleteTree.heapRemoveRoot {α : Type u} {n : Nat} (le : α → α → Bool) (heap : CompleteTree α (n+1)) : CompleteTree α n × α :=
+def CompleteTree.heapPop {α : Type u} {n : Nat} (le : α → α → Bool) (heap : CompleteTree α (n+1)) : CompleteTree α n × α :=
   let l := heap.removeLast
   if p : n > 0 then
     heapUpdateRoot le l.snd l.fst p
   else
     l
 
-theorem CompleteTree.heapRemoveRootIsHeap {α : Type u} {n : Nat} (le : α → α → Bool) (heap : CompleteTree α (n+1)) (h₁ : HeapPredicate heap le) (wellDefinedLe : transitive_le le ∧ total_le le) : HeapPredicate (heap.heapRemoveRoot le).fst le := by
+theorem CompleteTree.heapPopIsHeap {α : Type u} {n : Nat} (le : α → α → Bool) (heap : CompleteTree α (n+1)) (h₁ : HeapPredicate heap le) (wellDefinedLe : transitive_le le ∧ total_le le) : HeapPredicate (heap.heapPop le).fst le := by
   have h₂ : HeapPredicate heap.removeLast.fst le := removeLastIsHeap h₁ wellDefinedLe.left wellDefinedLe.right
-  unfold heapRemoveRoot
+  unfold heapPop
   cases n <;> simp[h₂, heapUpdateRootIsHeap, wellDefinedLe]
 
 def BinaryHeap.RemoveRoot {α : Type u} {le : α → α → Bool} {n : Nat} : (BinaryHeap α le (n+1)) → (BinaryHeap α le n × α)
 | {tree, valid, wellDefinedLe} =>
-  let result := tree.heapRemoveRoot le
-  let resultValid := CompleteTree.heapRemoveRootIsHeap le tree valid wellDefinedLe
+  let result := tree.heapPop le
+  let resultValid := CompleteTree.heapPopIsHeap le tree valid wellDefinedLe
   ({ tree := result.fst, valid := resultValid, wellDefinedLe}, result.snd)
 
 /--Removes the element at a given index. Use `CompleteTree.indexOf` to find the respective index.-/
@@ -1063,7 +1061,7 @@ def CompleteTree.heapRemoveAt {α : Type u} {n : Nat} (le : α → α → Bool) 
   --indices are depth first, but "last" means last element of the complete tree.
   --sooo:
   if index_ne_zero : index = 0 then
-    heapRemoveRoot le heap
+    heapPop le heap
   else
     let lastIndex := heap.indexOfLast
     let l := heap.removeLast
@@ -1086,7 +1084,7 @@ theorem CompleteTree.heapRemoveAtIsHeap {α : Type u} {n : Nat} (le : α → α 
   have h₂ : HeapPredicate heap.removeLast.fst le := removeLastIsHeap h₁ wellDefinedLe.left wellDefinedLe.right
   unfold heapRemoveAt
   split
-  case isTrue => exact heapRemoveRootIsHeap le heap h₁ wellDefinedLe
+  case isTrue => exact heapPopIsHeap le heap h₁ wellDefinedLe
   case isFalse h₃ =>
     cases h: (index = heap.indexOfLast : Bool)
     <;> simp_all
@@ -1102,7 +1100,7 @@ def BinaryHeap.RemoveAt {α : Type u} {le : α → α → Bool} {n : Nat} : (Bin
 -------------------------------------------------------------------------------------------------------
 
 private def TestHeap :=
-  let ins : {n: Nat} → Nat → CompleteTree Nat n → CompleteTree Nat (n+1) := λ x y ↦ CompleteTree.heapInsert (.≤.) x y
+  let ins : {n: Nat} → Nat → CompleteTree Nat n → CompleteTree Nat (n+1) := λ x y ↦ CompleteTree.heapPush (.≤.) x y
   ins 5 CompleteTree.empty
   |> ins 3
   |> ins 7
@@ -1128,7 +1126,7 @@ private def TestHeap :=
 #eval TestHeap.heapRemoveAt (.≤.) 7
 
 private def TestHeap2 :=
-  let ins : {n: Nat} → Nat → CompleteTree Nat n → CompleteTree Nat (n+1) := λ x y ↦ CompleteTree.heapInsert (.≤.) x y
+  let ins : {n: Nat} → Nat → CompleteTree Nat n → CompleteTree Nat (n+1) := λ x y ↦ CompleteTree.heapPush (.≤.) x y
   ins 5 CompleteTree.empty
   |> ins 1
   |> ins 2
