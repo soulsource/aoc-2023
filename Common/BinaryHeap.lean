@@ -431,77 +431,69 @@ def CompleteTree.indexOfLast {α : Type u} (heap : CompleteTree α (o+1)) : Fin 
         | .succ mm =>
           ⟨r.indexOfLast.val + 1 + n, by omega⟩
 
+/-- Helper for popLast -/
+private theorem CompleteTree.removeRightRightNotEmpty {n m : Nat} (m_gt_0_or_rightIsFull : m > 0 ∨ ((m+1).nextPowerOfTwo = m+1 : Bool)) (h₁ : 0 ≠ n + m) (h₂ : ¬(m < n ∧ ((m+1).nextPowerOfTwo = m+1 : Bool))) : m > 0 :=
+  match m_gt_0_or_rightIsFull with
+  | Or.inl h => h
+  | Or.inr h => by
+    simp only [h, and_true, Nat.not_lt] at h₂
+    cases n
+    case zero => exact Nat.zero_lt_of_ne_zero $ (Nat.zero_add m).subst (motive := (·≠0)) h₁.symm
+    case succ q =>
+      cases m
+      . exact absurd h₂ $ Nat.not_succ_le_zero q
+      . exact Nat.succ_pos _
+
+/-- Helper for popLast -/
+private theorem CompleteTree.removeRightLeftIsFull {n m : Nat} (r : ¬(m < n ∧ ((m+1).nextPowerOfTwo = m+1 : Bool))) (m_le_n : m ≤ n) (subtree_complete : (n + 1).isPowerOfTwo ∨ (m + 1).isPowerOfTwo) : (n+1).isPowerOfTwo := by
+  rewrite[Decidable.not_and_iff_or_not] at r
+  cases r
+  case inl h₁ => rewrite[Nat.not_lt_eq] at h₁
+                 have h₂ := Nat.le_antisymm h₁ m_le_n
+                 rewrite[←h₂] at subtree_complete
+                 simp at subtree_complete
+                 assumption
+  case inr h₁ => simp(config := {zetaDelta := true })[←Nat.power_of_two_iff_next_power_eq] at h₁
+                 simp[h₁] at subtree_complete
+                 assumption
+
+/-- Helper for popLast-/
+private theorem CompleteTree.stillInRange {n m : Nat} (r : ¬(m < n ∧ ((m+1).nextPowerOfTwo = m+1 : Bool))) (m_le_n : m ≤ n) (m_gt_0 : m > 0) (leftIsFull : (n+1).isPowerOfTwo) (max_height_difference: n < 2 * (m + 1)) : n < 2*m := by
+  rewrite[Decidable.not_and_iff_or_not] at r
+  cases r with
+  | inl h₁ => have m_eq_n : m = n := Nat.le_antisymm m_le_n (Nat.not_lt.mp h₁)
+              have m_lt_2_m : m < 2 * m := (Nat.one_mul m).subst (motive := λ x ↦ x < 2 * m) $ Nat.mul_lt_mul_of_pos_right Nat.one_lt_two m_gt_0
+              exact m_eq_n.subst (motive := λx ↦ x < 2 * m) m_lt_2_m
+  | inr h₁ => simp (config := { zetaDelta := true }) only [← Nat.power_of_two_iff_next_power_eq, decide_eq_true_eq] at h₁
+              apply power_of_two_mul_two_le <;> assumption
+
 def CompleteTree.popLast {α : Type u} (heap : CompleteTree α (o+1)) : (α × CompleteTree α o) :=
   match o, heap with
   | (n+m), .branch a (left : CompleteTree α n) (right : CompleteTree α m) m_le_n max_height_difference subtree_complete =>
     if p : 0 = (n+m) then
       (a, p▸CompleteTree.leaf)
     else
-      --let leftIsFull : Bool := (n+1).nextPowerOfTwo = n+1
       let rightIsFull : Bool := (m+1).nextPowerOfTwo = m+1
-      have m_gt_0_or_rightIsFull : m > 0 ∨ rightIsFull := by cases m <;> simp_arith (config := { ground:=true })[rightIsFull]
+      have m_gt_0_or_rightIsFull : m > 0 ∨ rightIsFull := by cases m <;> simp (config := { ground:=true })[rightIsFull]
       if r : m < n ∧ rightIsFull then
         --remove left
         match n, left with
         | (l+1), left =>
           let (res, (newLeft : CompleteTree α l)) := left.popLast
           have q : l + m + 1 = l + 1 + m := Nat.add_right_comm l m 1
-          have s : m ≤ l := match r with
-          | .intro a _ => by apply Nat.le_of_lt_succ
-                             simp[a]
-          have rightIsFull : (m+1).isPowerOfTwo := by
-            have r := And.right r
-            simp (config := {zetaDelta := true })[←Nat.power_of_two_iff_next_power_eq] at r
-            assumption
-          have l_lt_2_m_succ : l < 2 * (m+1) := by apply Nat.lt_of_succ_lt; assumption
+          have s : m ≤ l := Nat.le_of_lt_succ r.left
+          have rightIsFull : (m+1).isPowerOfTwo := (Nat.power_of_two_iff_next_power_eq (m+1)).mpr $ decide_eq_true_eq.mp r.right
+          have l_lt_2_m_succ : l < 2 * (m+1) := Nat.lt_of_succ_lt max_height_difference
           (res, q▸CompleteTree.branch a newLeft right s l_lt_2_m_succ (Or.inr rightIsFull))
       else
         --remove right
-        have m_gt_0 : m > 0 := by
-          cases m_gt_0_or_rightIsFull
-          case inl => assumption
-          case inr h =>
-            simp_arith [h] at r
-            cases n
-            case zero =>
-              simp[Nat.zero_lt_of_ne_zero] at p
-              exact Nat.zero_lt_of_ne_zero (Ne.symm p)
-            case succ q =>
-              cases m
-              . have := Nat.not_succ_le_zero q
-                contradiction
-              . simp_arith
+        have m_gt_0 : m > 0 := removeRightRightNotEmpty m_gt_0_or_rightIsFull p r
         let l := m.pred
         have h₂ : l.succ = m := (Nat.succ_pred $ Nat.not_eq_zero_of_lt (Nat.gt_of_not_le $ Nat.not_le_of_gt m_gt_0))
         let (res, (newRight : CompleteTree α l)) := (h₂.symm▸right).popLast
-        have s : l ≤ n := Nat.le_trans ((Nat.add_zero l).subst (motive := λ x ↦ x ≤ m) $ h₂.subst (Nat.add_le_add_left (Nat.zero_le 1) l)) (h₂.substr m_le_n)
-        have leftIsFull : (n+1).isPowerOfTwo := by
-          rewrite[Decidable.not_and_iff_or_not] at r
-          cases r
-          case inl h₁ => rewrite[Nat.not_lt_eq] at h₁
-                         have h₂ := Nat.le_antisymm h₁ m_le_n
-                         rewrite[←h₂] at subtree_complete
-                         simp at subtree_complete
-                         assumption
-          case inr h₁ => simp_arith(config := {zetaDelta := true })[←Nat.power_of_two_iff_next_power_eq] at h₁
-                         simp[h₁] at subtree_complete
-                         assumption
-        have still_in_range : n < 2*(l+1) := by
-          rewrite[Decidable.not_and_iff_or_not (m<n) rightIsFull] at r
-          rw[←Nat.add_one] at h₂
-          cases r with
-          | inl h₁ => simp_arith at h₁
-                      have h₃ := Nat.le_antisymm m_le_n h₁
-                      subst n
-                      have h₄ := Nat.mul_lt_mul_of_pos_right (by decide : 1 < 2) m_gt_0
-                      simp at h₄
-                      rw[h₂]
-                      assumption
-          | inr h₁ => simp(config := {zetaDelta := true })[←Nat.power_of_two_iff_next_power_eq, h₂] at h₁
-                      rw[h₂]
-                      apply power_of_two_mul_two_le <;> assumption
-        (res, h₂▸CompleteTree.branch a left newRight s still_in_range (Or.inl leftIsFull))
-
+        have leftIsFull : (n+1).isPowerOfTwo := removeRightLeftIsFull r m_le_n subtree_complete
+        have still_in_range : n < 2 * (l+1) := h₂.substr (p := λx ↦ n < 2 * x) $ stillInRange r m_le_n m_gt_0 leftIsFull max_height_difference
+        (res, h₂▸CompleteTree.branch a left newRight (Nat.le_of_succ_le (h₂▸m_le_n)) still_in_range (Or.inl leftIsFull))
 
 theorem CompleteTree.castZeroHeap (n m : Nat) (heap : CompleteTree α 0) (h₁ : 0=n+m) {le : α → α → Bool} : HeapPredicate (h₁ ▸ heap) le := by
   have h₂ : heap = (CompleteTree.empty : CompleteTree α 0) := by
