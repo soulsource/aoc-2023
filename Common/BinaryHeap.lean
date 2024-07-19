@@ -431,7 +431,7 @@ def CompleteTree.indexOfLast {α : Type u} (heap : CompleteTree α (o+1)) : Fin 
         | .succ mm =>
           ⟨r.indexOfLast.val + 1 + n, by omega⟩
 
-/-- Helper for removeLast -/
+/-- Helper for heapRemoveLast -/
 private theorem CompleteTree.removeRightRightNotEmpty {n m : Nat} (m_gt_0_or_rightIsFull : m > 0 ∨ ((m+1).nextPowerOfTwo = m+1 : Bool)) (h₁ : 0 ≠ n + m) (h₂ : ¬(m < n ∧ ((m+1).nextPowerOfTwo = m+1 : Bool))) : m > 0 :=
   match m_gt_0_or_rightIsFull with
   | Or.inl h => h
@@ -444,7 +444,7 @@ private theorem CompleteTree.removeRightRightNotEmpty {n m : Nat} (m_gt_0_or_rig
       . exact absurd h₂ $ Nat.not_succ_le_zero q
       . exact Nat.succ_pos _
 
-/-- Helper for removeLast -/
+/-- Helper for heapRemoveLast -/
 private theorem CompleteTree.removeRightLeftIsFull {n m : Nat} (r : ¬(m < n ∧ ((m+1).nextPowerOfTwo = m+1 : Bool))) (m_le_n : m ≤ n) (subtree_complete : (n + 1).isPowerOfTwo ∨ (m + 1).isPowerOfTwo) : (n+1).isPowerOfTwo := by
   rewrite[Decidable.not_and_iff_or_not] at r
   cases r
@@ -457,7 +457,7 @@ private theorem CompleteTree.removeRightLeftIsFull {n m : Nat} (r : ¬(m < n ∧
                  simp[h₁] at subtree_complete
                  assumption
 
-/-- Helper for removeLast-/
+/-- Helper for heapRemoveLast-/
 private theorem CompleteTree.stillInRange {n m : Nat} (r : ¬(m < n ∧ ((m+1).nextPowerOfTwo = m+1 : Bool))) (m_le_n : m ≤ n) (m_gt_0 : m > 0) (leftIsFull : (n+1).isPowerOfTwo) (max_height_difference: n < 2 * (m + 1)) : n < 2*m := by
   rewrite[Decidable.not_and_iff_or_not] at r
   cases r with
@@ -467,7 +467,7 @@ private theorem CompleteTree.stillInRange {n m : Nat} (r : ¬(m < n ∧ ((m+1).n
   | inr h₁ => simp (config := { zetaDelta := true }) only [← Nat.power_of_two_iff_next_power_eq, decide_eq_true_eq] at h₁
               apply power_of_two_mul_two_le <;> assumption
 
-private def CompleteTree.removeLast {α : Type u} (heap : CompleteTree α (o+1)) : (CompleteTree α o × α) :=
+private def CompleteTree.heapRemoveLast {α : Type u} (heap : CompleteTree α (o+1)) : (CompleteTree α o × α) :=
   match o, heap with
   | (n+m), .branch a (left : CompleteTree α n) (right : CompleteTree α m) m_le_n max_height_difference subtree_complete =>
     if p : 0 = (n+m) then
@@ -479,7 +479,7 @@ private def CompleteTree.removeLast {α : Type u} (heap : CompleteTree α (o+1))
         --remove left
         match n, left with
         | (l+1), left =>
-          let ((newLeft : CompleteTree α l), res) := left.removeLast
+          let ((newLeft : CompleteTree α l), res) := left.heapRemoveLast
           have q : l + m + 1 = l + 1 + m := Nat.add_right_comm l m 1
           have s : m ≤ l := Nat.le_of_lt_succ r.left
           have rightIsFull : (m+1).isPowerOfTwo := (Nat.power_of_two_iff_next_power_eq (m+1)).mpr $ decide_eq_true_eq.mp r.right
@@ -490,7 +490,7 @@ private def CompleteTree.removeLast {α : Type u} (heap : CompleteTree α (o+1))
         have m_gt_0 : m > 0 := removeRightRightNotEmpty m_gt_0_or_rightIsFull p r
         let l := m.pred
         have h₂ : l.succ = m := (Nat.succ_pred $ Nat.not_eq_zero_of_lt (Nat.gt_of_not_le $ Nat.not_le_of_gt m_gt_0))
-        let ((newRight : CompleteTree α l), res) := (h₂.symm▸right).removeLast
+        let ((newRight : CompleteTree α l), res) := (h₂.symm▸right).heapRemoveLast
         have leftIsFull : (n+1).isPowerOfTwo := removeRightLeftIsFull r m_le_n subtree_complete
         have still_in_range : n < 2 * (l+1) := h₂.substr (p := λx ↦ n < 2 * x) $ stillInRange r m_le_n m_gt_0 leftIsFull max_height_difference
         (h₂▸CompleteTree.branch a left newRight (Nat.le_of_succ_le (h₂▸m_le_n)) still_in_range (Or.inl leftIsFull), res)
@@ -530,14 +530,14 @@ private theorem HeapPredicate.seesThroughCast2
     assumption
 
 -- If there is only one element left, the result is a leaf.
-private theorem CompleteTree.removeLastLeaf (heap : CompleteTree α 1) : heap.removeLast.fst = CompleteTree.leaf := by
-  let l := heap.removeLast.fst
+private theorem CompleteTree.heapRemoveLastLeaf (heap : CompleteTree α 1) : heap.heapRemoveLast.fst = CompleteTree.leaf := by
+  let l := heap.heapRemoveLast.fst
   have h₁ : l = CompleteTree.leaf := match l with
     | .leaf => rfl
   exact h₁
 
-private theorem CompleteTree.removeLastLeavesRoot (heap : CompleteTree α (n+1)) (h₁ : n > 0) : heap.root (Nat.zero_lt_of_ne_zero $ Nat.succ_ne_zero n) = heap.removeLast.fst.root (h₁) := by
-  unfold removeLast
+private theorem CompleteTree.heapRemoveLastLeavesRoot (heap : CompleteTree α (n+1)) (h₁ : n > 0) : heap.root (Nat.zero_lt_of_ne_zero $ Nat.succ_ne_zero n) = heap.heapRemoveLast.fst.root (h₁) := by
+  unfold heapRemoveLast
   split
   rename_i o p v l r _ _ _
   have h₃ : (0 ≠ o + p) := Ne.symm $ Nat.not_eq_zero_of_lt h₁
@@ -561,8 +561,8 @@ private theorem CompleteTree.removeLastLeavesRoot (heap : CompleteTree α (n+1))
         simp_arith
         apply root_unfold
 
-private theorem CompleteTree.removeLastIsHeap {heap : CompleteTree α (o+1)} {le : α → α → Bool} (h₁ : HeapPredicate heap le) (h₂ : transitive_le le) (h₃ : total_le le) : HeapPredicate (heap.removeLast.fst) le := by
-  unfold removeLast
+private theorem CompleteTree.heapRemoveLastIsHeap {heap : CompleteTree α (o+1)} {le : α → α → Bool} (h₁ : HeapPredicate heap le) (h₂ : transitive_le le) (h₃ : total_le le) : HeapPredicate (heap.heapRemoveLast.fst) le := by
+  unfold heapRemoveLast
   split
   rename_i n m v l r _ _ _
   exact
@@ -580,19 +580,19 @@ private theorem CompleteTree.removeLastIsHeap {heap : CompleteTree α (o+1)} {le
             simp
             apply HeapPredicate.seesThroughCast2 <;> try simp_arith
             cases ll
-            case a.zero => -- if ll is zero, then (removeLast l).snd is a leaf.
-              have h₆ : l.removeLast.fst = .leaf := removeLastLeaf l
+            case a.zero => -- if ll is zero, then (heapRemoveLast l).snd is a leaf.
+              have h₆ : l.heapRemoveLast.fst = .leaf := heapRemoveLastLeaf l
               rw[h₆]
               unfold HeapPredicate at *
               have h₇ : HeapPredicate .leaf le := by trivial
               have h₈ : HeapPredicate.leOrLeaf le v .leaf := by trivial
               exact ⟨h₇,h₁.right.left, h₈, h₁.right.right.right⟩
-            case a.succ nn => -- if ll is not zero, then the root element before and after removeLast is the same.
+            case a.succ nn => -- if ll is not zero, then the root element before and after heapRemoveLast is the same.
               unfold HeapPredicate at *
-              simp[h₁.right.left, h₁.right.right.right, removeLastIsHeap h₁.left h₂ h₃]
+              simp[h₁.right.left, h₁.right.right.right, heapRemoveLastIsHeap h₁.left h₂ h₃]
               unfold HeapPredicate.leOrLeaf
               simp
-              rw[←removeLastLeavesRoot]
+              rw[←heapRemoveLastLeavesRoot]
               exact h₁.right.right.left
         else by
           simp[h₅]
@@ -603,20 +603,20 @@ private theorem CompleteTree.removeLastIsHeap {heap : CompleteTree α (o+1)} {le
           case succ mm h₆ h₇ h₈ =>
             simp
             unfold HeapPredicate at *
-            simp[h₁, removeLastIsHeap h₁.right.left h₂ h₃]
+            simp[h₁, heapRemoveLastIsHeap h₁.right.left h₂ h₃]
             unfold HeapPredicate.leOrLeaf
             exact match mm with
             | 0 => rfl
             | o+1 =>
-              have h₉ : le v ((r.removeLast).fst.root (Nat.zero_lt_succ o)) := by
-                rw[←removeLastLeavesRoot]
+              have h₉ : le v ((r.heapRemoveLast).fst.root (Nat.zero_lt_succ o)) := by
+                rw[←heapRemoveLastLeavesRoot]
                 exact h₁.right.right.right
               h₉
 
-private def BinaryHeap.removeLast {α : Type u} {le : α → α → Bool} {n : Nat} : (BinaryHeap α le (n+1)) → BinaryHeap α le n × α
+private def BinaryHeap.heapRemoveLast {α : Type u} {le : α → α → Bool} {n : Nat} : (BinaryHeap α le (n+1)) → BinaryHeap α le n × α
 | {tree, valid, wellDefinedLe} =>
-  let result := tree.removeLast
-  let resultValid := CompleteTree.removeLastIsHeap valid wellDefinedLe.left wellDefinedLe.right
+  let result := tree.heapRemoveLast
+  let resultValid := CompleteTree.heapRemoveLastIsHeap valid wellDefinedLe.left wellDefinedLe.right
   ({ tree := result.fst, valid := resultValid, wellDefinedLe}, result.snd)
 
 /--
@@ -1037,14 +1037,14 @@ theorem CompleteTree.heapUpdateAtIsHeap {α : Type u} {n : Nat} (le : α → α 
           exact h₁₀
 
 def CompleteTree.heapPop {α : Type u} {n : Nat} (le : α → α → Bool) (heap : CompleteTree α (n+1)) : CompleteTree α n × α :=
-  let l := heap.removeLast
+  let l := heap.heapRemoveLast
   if p : n > 0 then
     heapUpdateRoot le l.snd l.fst p
   else
     l
 
 theorem CompleteTree.heapPopIsHeap {α : Type u} {n : Nat} (le : α → α → Bool) (heap : CompleteTree α (n+1)) (h₁ : HeapPredicate heap le) (wellDefinedLe : transitive_le le ∧ total_le le) : HeapPredicate (heap.heapPop le).fst le := by
-  have h₂ : HeapPredicate heap.removeLast.fst le := removeLastIsHeap h₁ wellDefinedLe.left wellDefinedLe.right
+  have h₂ : HeapPredicate heap.heapRemoveLast.fst le := heapRemoveLastIsHeap h₁ wellDefinedLe.left wellDefinedLe.right
   unfold heapPop
   cases n <;> simp[h₂, heapUpdateRootIsHeap, wellDefinedLe]
 
@@ -1064,7 +1064,7 @@ def CompleteTree.heapRemoveAt {α : Type u} {n : Nat} (le : α → α → Bool) 
     heapPop le heap
   else
     let lastIndex := heap.indexOfLast
-    let l := heap.removeLast
+    let l := heap.heapRemoveLast
     if p : index = lastIndex then
       l
     else
@@ -1081,7 +1081,7 @@ def CompleteTree.heapRemoveAt {α : Type u} {n : Nat} (le : α → α → Bool) 
         heapUpdateAt le index l.snd l.fst n_gt_zero
 
 theorem CompleteTree.heapRemoveAtIsHeap {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin (n+1)) (heap : CompleteTree α (n+1)) (h₁ : HeapPredicate heap le) (wellDefinedLe : transitive_le le ∧ total_le le) : HeapPredicate (heap.heapRemoveAt le index).fst le := by
-  have h₂ : HeapPredicate heap.removeLast.fst le := removeLastIsHeap h₁ wellDefinedLe.left wellDefinedLe.right
+  have h₂ : HeapPredicate heap.heapRemoveLast.fst le := heapRemoveLastIsHeap h₁ wellDefinedLe.left wellDefinedLe.right
   unfold heapRemoveAt
   split
   case isTrue => exact heapPopIsHeap le heap h₁ wellDefinedLe
@@ -1120,7 +1120,7 @@ private def TestHeap :=
   |> ins 3
 
 #eval TestHeap
-#eval TestHeap.removeLast
+#eval TestHeap.heapRemoveLast
 #eval TestHeap.indexOf (13 = ·)
 
 #eval TestHeap.heapRemoveAt (.≤.) 7
