@@ -484,6 +484,40 @@ private def CompleteTree.heapRemoveLastWithIndex {α : Type u} {o : Nat} (heap :
   (λ(a, prev_idx) h₁ ↦ (a, prev_idx.succ.castLE $ Nat.succ_le_of_lt h₁) )
   (λ(a, prev_idx) left_size h₁ ↦ (a, (prev_idx.addNat left_size).succ.castLE $ Nat.succ_le_of_lt h₁))
 
+private theorem CompleteTree.fstSeesThroughCast {α : Type u} (h₁ : n+m = 0) (t : α × Fin (1)) : (h₁▸t : (α × Fin (n+m+1))).fst = t.fst := by
+  cases n
+  cases m
+  simp only [Nat.add_zero, Nat.reduceAdd]
+  all_goals simp_arith at h₁;
+
+private theorem CompleteTree.sndSeesThroughCast {α : Type u} (h₁ : n+m = 0) (t : α × Fin (1)) : (h₁▸t : (α × Fin (n+m+1))).snd = 0 := by
+  omega
+
+theorem CompleteTree.heapRemoveLastWithIndexReturnsItemAtIndex {α : Type u} {o : Nat} (heap : CompleteTree α (o+1)) : heap.get heap.heapRemoveLastWithIndex.snd.snd = heap.heapRemoveLastWithIndex.snd.fst := by
+  unfold heapRemoveLastWithIndex heapRemoveLastAux
+  split
+  rename_i n m v l r m_le_n max_height_difference subtree_full
+  simp
+  split
+  case isTrue n_m_zero =>
+    unfold get
+    rw[fstSeesThroughCast n_m_zero.symm]
+    rw[sndSeesThroughCast n_m_zero.symm] -- prob not needed
+    simp
+    split
+    case h_1 =>
+      have h₁ : n = 0 := And.left $ Nat.add_eq_zero.mp n_m_zero.symm
+      have h₂ : m = 0 := And.right $ Nat.add_eq_zero.mp n_m_zero.symm
+      rename_i nn mm vv ll rr mm_le_nn _ _ _ _ he₁ he₂
+      have h₃ : nn = 0 := And.left (Nat.add_eq_zero.mp $ Eq.symm $ (Nat.zero_add 0).subst (motive := λx ↦ x = nn + mm) $ h₂.subst (motive := λx ↦ 0 + x = nn + mm) (h₁.subst (motive := λx ↦ x + m = nn + mm) he₁))
+      have h₄ : mm = 0 := And.right (Nat.add_eq_zero.mp $ Eq.symm $ (Nat.zero_add 0).subst (motive := λx ↦ x = nn + mm) $ h₂.subst (motive := λx ↦ 0 + x = nn + mm) (h₁.subst (motive := λx ↦ x + m = nn + mm) he₁))
+      subst n m nn mm
+      exact And.left $ CompleteTree.branch.inj (eq_of_heq he₂.symm)
+    case h_2 =>
+      omega -- to annoying to deal with Fin.ofNat... There's a hypothesis that says 0 = ⟨1,_⟩.
+  case isFalse n_m_not_zero =>
+    sorry
+
 private theorem CompleteTree.castZeroHeap (n m : Nat) (heap : CompleteTree α 0) (h₁ : 0=n+m) {le : α → α → Bool} : HeapPredicate (h₁ ▸ heap) le := by
   have h₂ : heap = (CompleteTree.empty : CompleteTree α 0) := by
     simp[empty]
