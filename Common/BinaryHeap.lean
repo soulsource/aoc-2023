@@ -579,17 +579,17 @@ private theorem CompleteTree.heapRemoveLastAuxIsHeap
   rename_i n m v l r _ _ _
   exact
     if h₄ : 0 = (n+m) then by
-      simp[h₄, castZeroHeap]
+      simp only [h₄, reduceDite, castZeroHeap]
     else by
       simp[h₄]
       exact
         if h₅ : (m<n ∧ Nat.nextPowerOfTwo (m+1) = m+1) then by
-          simp[h₅]
+          simp only [h₅, and_self, ↓reduceDite]
           cases n
           case zero =>
             exact absurd h₅.left $ Nat.not_lt_zero m
           case succ ll h₆ h₇ h₈  =>
-            simp
+            simp only
             apply HeapPredicate.seesThroughCast2 <;> try simp_arith
             cases ll
             case a.zero => -- if ll is zero, then (heapRemoveLast l).snd is a leaf.
@@ -601,21 +601,20 @@ private theorem CompleteTree.heapRemoveLastAuxIsHeap
               exact ⟨h₇,h₁.right.left, h₈, h₁.right.right.right⟩
             case a.succ nn => -- if ll is not zero, then the root element before and after heapRemoveLast is the same.
               unfold HeapPredicate at *
-              simp[h₁.right.left, h₁.right.right.right, heapRemoveLastAuxIsHeap aux0 auxl auxr h₁.left h₂ h₃]
+              simp only [heapRemoveLastAuxIsHeap aux0 auxl auxr h₁.left h₂ h₃, h₁.right.left, h₁.right.right.right, and_true, true_and]
               unfold HeapPredicate.leOrLeaf
-              simp
+              simp only
               rw[←heapRemoveLastAuxLeavesRoot]
               exact h₁.right.right.left
         else by
           simp[h₅]
           cases m
           case zero =>
-            simp_arith at h₄ -- n ≠ 0
-            simp_arith (config :={ground:=true})[Ne.symm h₄] at h₅ -- the second term in h₅ is decidable and True. What remains is ¬(0 < n), or n = 0
+            simp only [Nat.add_zero] at h₄ -- n ≠ 0
+            simp (config := { ground := true }) only [Nat.zero_add, and_true, Nat.not_lt, Nat.le_zero_eq, Ne.symm h₄] at h₅ -- the second term in h₅ is decidable and True. What remains is ¬(0 < n), or n = 0
           case succ mm h₆ h₇ h₈ =>
-            simp
             unfold HeapPredicate at *
-            simp[h₁, heapRemoveLastAuxIsHeap aux0 auxl auxr h₁.right.left h₂ h₃]
+            simp only [h₁, heapRemoveLastAuxIsHeap aux0 auxl auxr h₁.right.left h₂ h₃, true_and]
             unfold HeapPredicate.leOrLeaf
             exact match mm with
             | 0 => rfl
@@ -713,11 +712,11 @@ private theorem CompleteTree.heapUpdateRootReturnsRoot {α : Type u} {n : Nat} (
     cases p <;> simp
     case zero =>
       cases le value (root l _)
-      <;> simp[root_unfold]
+      <;> simp only [Bool.false_eq_true, ↓reduceIte, root_unfold]
     case succ =>
       cases le value (root l _) <;> cases le value (root r _)
       <;> cases le (root l _) (root r _)
-      <;> simp[root_unfold]
+      <;> simp only [Bool.false_eq_true, and_self, and_true, and_false, ↓reduceIte, root_unfold]
 
 private theorem CompleteTree.heapUpdateRootPossibleRootValuesAuxL {α : Type u} (heap : CompleteTree α n) (h₁ : n > 1) : 0 < heap.leftLen (Nat.lt_trans (Nat.lt_succ_self 0) h₁) :=
   match h₅: n, heap with
@@ -758,7 +757,7 @@ have h₃ : 0 < leftLen heap h₂ := heapUpdateRootPossibleRootValuesAuxL heap (
   case zero => simp only[root, true_or]
   case succ oo =>
     have h₆ : p = 0 := by simp at h₁; omega
-    simp[h₆]
+    simp only [h₆, ↓reduceDite]
     cases le value (l.root _)
     <;> simp[heapUpdateRootReturnsRoot, root_unfold, left_unfold]
 
@@ -770,36 +769,40 @@ have h₄ : 0 < rightLen heap h₂ := heapUpdateRootPossibleRootValuesAuxR heap 
 ∨ (heap.heapUpdateRoot le value h₂).fst.root h₂ = (heap.left h₂).root h₃
 ∨ (heap.heapUpdateRoot le value h₂).fst.root h₂ = (heap.right h₂).root h₄
 := by
-  simp
+  simp only
   unfold heapUpdateRoot
   generalize (Nat.lt_trans (Nat.lt_succ_self 0) (Nat.lt_trans (Nat.lt_succ_self 1) h₁) : 0 < n) = h₂
   split
   rename_i o p v l r h₃ h₄ h₅ h₂
-  cases o <;> simp
+  cases o
   case zero => simp only[root, true_or]
   case succ oo =>
     have h₆ : p ≠ 0 := by simp at h₁; omega
-    simp[h₆]
+    simp only [Nat.add_one_ne_zero, ↓reduceDite, h₆]
     cases le value (l.root _) <;> simp
     rotate_right
     cases le value (r.root _) <;> simp
     case true.true => simp[root]
     case false | true.false =>
-      cases le (l.root _) (r.root _) <;> simp[heapUpdateRootReturnsRoot, root_unfold, left_unfold, right_unfold]
+      cases le (l.root _) (r.root _)
+      <;> simp only [Bool.false_eq_true, ↓reduceIte, heapUpdateRootReturnsRoot, root_unfold, left_unfold, right_unfold, true_or, or_true]
 
 private theorem CompleteTree.heapUpdateRootIsHeapLeRootAux {α : Type u} (le : α → α → Bool) (value : α) (heap : CompleteTree α n) (h₁ : HeapPredicate heap le) (h₂ : n > 0) (h₃ : le (root heap h₂) value) : HeapPredicate.leOrLeaf le (root heap h₂) (heapUpdateRoot le value heap h₂).fst :=
   if h₄ : n = 1 then by
     have h₅ : le (heap.root h₂) ( (heapUpdateRoot le value heap h₂).fst.root h₂) := by simp only[h₃, h₄, heapUpdateRootPossibleRootValues1]
     unfold HeapPredicate.leOrLeaf
-    split <;> simp[h₅]
+    split
+    · rfl
+    · exact h₅
   else if h₅ : n = 2 then by
     have h₆ := heapUpdateRootPossibleRootValues2 le value heap h₅
-    simp at h₆
     cases h₆
     case inl h₆ =>
       have h₇ : le (heap.root h₂) ( (heapUpdateRoot le value heap h₂).fst.root h₂) := by simp only [h₆, h₃]
       unfold HeapPredicate.leOrLeaf
-      split <;> simp[h₇]
+      split
+      · rfl
+      · exact h₇
     case inr h₆ =>
       unfold HeapPredicate.leOrLeaf
       unfold HeapPredicate at h₁
@@ -808,9 +811,9 @@ private theorem CompleteTree.heapUpdateRootIsHeapLeRootAux {α : Type u} (le : �
       case h_2 o p v l r h₇ h₈ h₉ =>
         have h₁₁ : p = 0 := by
          simp at h₅
-         cases o; simp[h₅] at h₇; exact h₇; simp_arith[Nat.add_eq_zero ] at h₅; exact h₅.right
+         cases o; simp only [Nat.le_zero_eq] at h₇; exact h₇; simp_arith[Nat.add_eq_zero] at h₅; exact h₅.right
         have h₁₀ : o = 1 := by simp_arith[h₁₁] at h₅; assumption
-        simp
+        simp only
         rw[h₆]
         have h₁₂ := h₁.right.right.left
         unfold HeapPredicate.leOrLeaf at h₁₂
@@ -826,7 +829,9 @@ private theorem CompleteTree.heapUpdateRootIsHeapLeRootAux {α : Type u} (le : �
     case inl h₇ =>
       have h₈ : le (heap.root h₂) ( (heapUpdateRoot le value heap h₂).fst.root h₂) := by simp only [h₇, h₃]
       unfold HeapPredicate.leOrLeaf
-      split <;> simp[h₈]
+      split
+      · rfl
+      · exact h₈
     case inr h₇ =>
       cases h₇
       case inl h₇ | inr h₇ =>
@@ -853,9 +858,9 @@ theorem CompleteTree.heapUpdateRootIsHeap {α : Type u} {n: Nat} (le : α → α
     rename_i o p v l r h₇ h₈ h₉ heq
     exact
       if h₁₀ : o = 0 then by
-        simp[*]
+        simp only [Nat.add_eq, Nat.succ_eq_add_one, h₁₀, ↓reduceDite]
         unfold HeapPredicate at h₂ ⊢
-        simp[h₂]
+        simp only [h₂, true_and]
         unfold HeapPredicate.leOrLeaf
         have : p = 0 := by rw[h₁₀, Nat.le_zero_eq] at h₇; assumption
         apply And.intro
@@ -864,11 +869,11 @@ theorem CompleteTree.heapUpdateRootIsHeap {α : Type u} {n: Nat} (le : α → α
         case right => match p, r with
         | Nat.zero, _ => trivial
       else if h₁₁ : p = 0 then by
-        simp[*]
+        simp only [↓reduceDite, h₁₀, h₁₁]
         cases h₉ : le value (root l (_ : 0 < o)) <;> simp
         case true =>
           unfold HeapPredicate at *
-          simp[h₂]
+          simp only [h₂, true_and]
           unfold HeapPredicate.leOrLeaf
           apply And.intro
           case right => match p, r with
@@ -880,56 +885,55 @@ theorem CompleteTree.heapUpdateRootIsHeap {α : Type u} {n: Nat} (le : α → α
           have h₁₂ : le (l.root (Nat.zero_lt_of_ne_zero h₁₀)) value := by simp[h₉, h₄, not_le_imp_le]
           have h₁₃ : o = 1 := Nat.le_antisymm (by simp_arith[h₁₁] at h₈; exact h₈) (Nat.succ_le_of_lt (Nat.zero_lt_of_ne_zero h₁₀))
           unfold HeapPredicate at *
-          simp[h₂] --closes one sub-goal
+          simp only [h₂, true_and] --closes one sub-goal
           apply And.intro <;> try apply And.intro
           case right.right => match p, r with
             | 0, .leaf => simp[HeapPredicate.leOrLeaf]
           case right.left =>
-            simp[HeapPredicate.leOrLeaf, h₁₃]
-            cases o <;> simp[heapUpdateRootPossibleRootValues1, *]
+            simp only [HeapPredicate.leOrLeaf]
+            cases o <;> simp only [Nat.succ_eq_add_one, heapUpdateRootPossibleRootValues1, h₁₃, h₁₂]
           case left =>
             apply heapUpdateRootIsHeap
-            <;> simp[*]
+            exact h₂.left
+            exact h₃
+            exact h₄
       else if h₁₂ : le value (root l (Nat.zero_lt_of_ne_zero h₁₀)) ∧ le value (root r (Nat.zero_lt_of_ne_zero h₁₁)) then by
         unfold HeapPredicate at *
-        simp[*]
+        simp only [↓reduceDite, and_self, ↓reduceIte, true_and, h₁₀, h₁₁, h₁₂, h₂]
         unfold HeapPredicate.leOrLeaf
         cases o
-        . contradiction
-        cases p
-        . contradiction
-        simp
-        assumption
+        · contradiction
+        · cases p
+          · contradiction
+          · assumption
       else by
-        simp[*]
+        simp only [↓reduceDite, ↓reduceIte, h₁₀, h₁₁, h₁₂]
         have h₁₃ : ¬le value (root l _) ∨ ¬le value (root r _) := (Decidable.not_and_iff_or_not (le value (root l (Nat.zero_lt_of_ne_zero h₁₀)) = true) (le value (root r (Nat.zero_lt_of_ne_zero h₁₁)) = true)).mp h₁₂
         cases h₁₄ : le (root l (_ : 0 < o)) (root r (_ : 0 < p))
-        <;> simp
+        <;> simp only [Bool.false_eq_true, ↓reduceIte]
         <;> unfold HeapPredicate at *
-        <;> simp[*]
+        <;> simp only [true_and, h₂]
         <;> apply And.intro
         <;> try apply And.intro
         case false.left | true.left =>
           apply heapUpdateRootIsHeap
-          <;> simp[*]
+          <;> simp only [h₂, h₃, h₄]
         case false.right.left =>
           unfold HeapPredicate.leOrLeaf
           have h₁₅ : le (r.root _) (l.root _) = true := not_le_imp_le h₄ (l.root _) (r.root _) $ (Bool.not_eq_true $ le (root l (_ : 0 < o)) (root r (_ : 0 < p))).substr h₁₄
-          simp[heapUpdateRootReturnsRoot]
-          cases o <;> simp[h₁₅]
+          simp only[heapUpdateRootReturnsRoot]
+          cases o <;> simp only[h₁₅]
         case true.right.right =>
           unfold HeapPredicate.leOrLeaf
-          simp[heapUpdateRootReturnsRoot]
-          cases p <;> simp[h₁₄]
+          simp only[heapUpdateRootReturnsRoot]
+          cases p <;> simp only[h₁₄]
         case false.right.right =>
-          simp[heapUpdateRootReturnsRoot]
           have h₁₅ : le (r.root _) (l.root _) = true := not_le_imp_le h₄ (l.root _) (r.root _) $ (Bool.not_eq_true $ le (root l (_ : 0 < o)) (root r (_ : 0 < p))).substr h₁₄
           have h₁₆ : le (r.root _) value := heapUpdateRootIsHeapLeRootAuxLe le h₃ h₄ h₁₅ h₁₃
-          simp[heapUpdateRootIsHeapLeRootAux, *]
+          simp only [heapUpdateRootReturnsRoot, heapUpdateRootIsHeapLeRootAux, h₂, h₁₆]
         case true.right.left =>
-          simp[heapUpdateRootReturnsRoot]
           have h₁₆ : le (l.root _) value := heapUpdateRootIsHeapLeRootAuxLe le h₃ h₄ h₁₄ h₁₃.symm
-          simp[heapUpdateRootIsHeapLeRootAux, *]
+          simp only [heapUpdateRootReturnsRoot, heapUpdateRootIsHeapLeRootAux, h₂, h₁₆]
 
 private theorem CompleteTree.heapUpdateAtIsHeapLeRootAux_RootLeValue {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin n) (value : α) (heap : CompleteTree α n) (h₁ : HeapPredicate heap le) (h₂ : n > 0) (h₃ : le (root heap h₂) value) (h₄ : total_le le) : HeapPredicate.leOrLeaf le (root heap h₂) (heapUpdateAt le index value heap h₂).fst := by
   unfold heapUpdateAt
@@ -938,7 +942,7 @@ private theorem CompleteTree.heapUpdateAtIsHeapLeRootAux_RootLeValue {α : Type 
   case isFalse hi =>
     split
     rename_i o p v l r h₆ h₇ h₈ index h₁ h₅
-    cases h₉ : le v value <;> simp (config := {ground := true})
+    cases h₉ : le v value <;> simp (config := { ground := true }) only
     case false => rw[root_unfold] at h₃; exact absurd h₃ ((Bool.not_eq_true (le v value)).substr h₉)
     case true =>
       rw[root_unfold]
@@ -953,20 +957,20 @@ private theorem CompleteTree.heapUpdateAtIsHeapLeRootAux_ValueLeRoot {α : Type 
     unfold heapUpdateRoot
     split
     rename_i o p v l r h₆ h₇ h₈ h₂
-    cases o <;> cases p <;> simp![reflexive_le, h₄]
+    cases o <;> cases p <;> simp only [↓reduceDite,HeapPredicate.leOrLeaf, root_unfold, h₄, reflexive_le]
     <;> unfold HeapPredicate at h₁
     <;> have h₁₀ : le value $ l.root (by omega) := h₅ value v (l.root _) ⟨h₃, h₁.right.right.left⟩
-    simp![reflexive_le, h₄, h₁₀]
+    simp only [↓reduceIte, Nat.add_zero, h₁₀, root_unfold, h₄, reflexive_le]
     have h₁₁ : le value $ r.root (by omega) := h₅ value v (r.root _) ⟨h₃, h₁.right.right.right⟩
-    simp![reflexive_le, h₄, h₁₀, h₁₁]
+    simp only [↓reduceIte, h₁₀, h₁₁, and_self, root_unfold, h₄, reflexive_le]
   case isFalse =>
     split
     rename_i o p v l r h₆ h₇ h₈ index h₂ hi
     cases le v value
-    <;> simp (config := {ground := true})[root_unfold] at h₃ ⊢
+    <;> simp (config := { ground := true }) only [root_unfold, Nat.pred_eq_sub_one] at h₃ ⊢
     <;> split
     <;> unfold HeapPredicate.leOrLeaf
-    <;> simp[root_unfold, reflexive_le, h₄, h₃]
+    <;> simp only [root_unfold, h₃, h₄, reflexive_le]
 
 theorem CompleteTree.heapUpdateAtIsHeap {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin n) (value : α) (heap : CompleteTree α n) (h₁ : n > 0) (h₂ : HeapPredicate heap le) (h₃ : transitive_le le) (h₄ : total_le le) : HeapPredicate (heap.heapUpdateAt le index value h₁).fst le := by
   unfold heapUpdateAt
@@ -980,7 +984,7 @@ theorem CompleteTree.heapUpdateAtIsHeap {α : Type u} {n : Nat} (le : α → α 
     <;> split
     <;> rename_i h -- h is the same name as used in the function
     <;> unfold HeapPredicate at h₂ ⊢
-    <;> simp[h₂]
+    <;> simp only [h₂, and_true, true_and]
     case false.isFalse =>
       have h₁₀ := not_le_imp_le h₄ v value (Bool.eq_false_iff.mp h₁₀)
       have h₁₄ : p > 0 := by cases p; exact absurd (Nat.lt_succ.mp index.isLt) h; exact Nat.zero_lt_succ _
@@ -1138,9 +1142,9 @@ private def TestHeap :=
 
 #eval TestHeap
 #eval TestHeap.heapRemoveLastWithIndex
-#eval TestHeap.indexOf (13 = ·)
+#eval TestHeap.indexOf (4 = ·)
 
-#eval TestHeap.heapRemoveAt (.≤.) 7
+#eval TestHeap.heapRemoveAt (.≤.) 14
 
 private def TestHeap2 :=
   let ins : {n: Nat} → Nat → CompleteTree Nat n → CompleteTree Nat (n+1) := λ x y ↦ CompleteTree.heapPush (.≤.) x y
