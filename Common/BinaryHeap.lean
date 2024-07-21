@@ -493,6 +493,19 @@ private theorem CompleteTree.fstSeesThroughCast {α : Type u} (h₁ : n+m = 0) (
 private theorem CompleteTree.sndSeesThroughCast {α : Type u} (h₁ : n+m = 0) (t : α × Fin (1)) : (h₁▸t : (α × Fin (n+m+1))).snd = 0 := by
   omega
 
+private theorem CompleteTree.heqSameLeftLen {α : Type u} {n m : Nat} {a : CompleteTree α n} {b : CompleteTree α m} (h₁ : n = m) (h₂ : n > 0) (h₃ : HEq a b) : a.leftLen h₂ = b.leftLen (h₁.subst h₂) := by
+  subst n
+  have h₃ : a = b := eq_of_heq h₃
+  subst a
+  rfl
+
+private theorem CompleteTree.heqSameRightLen {α : Type u} {n m : Nat} {a : CompleteTree α n} {b : CompleteTree α m} (h₁ : n = m) (h₂ : n > 0) (h₃ : HEq a b) : a.rightLen h₂ = b.rightLen (h₁.subst h₂) := by
+  subst n
+  have h₃ : a = b := eq_of_heq h₃
+  subst a
+  rfl
+
+/--Shows that the index and value returned by heapRemoveLastWithIndex are consistent.-/
 theorem CompleteTree.heapRemoveLastWithIndexReturnsItemAtIndex {α : Type u} {o : Nat} (heap : CompleteTree α (o+1)) : heap.get heap.heapRemoveLastWithIndex.snd.snd = heap.heapRemoveLastWithIndex.snd.fst := by
   unfold heapRemoveLastWithIndex heapRemoveLastAux
   split
@@ -516,7 +529,98 @@ theorem CompleteTree.heapRemoveLastWithIndexReturnsItemAtIndex {α : Type u} {o 
     case h_2 =>
       omega -- to annoying to deal with Fin.ofNat... There's a hypothesis that says 0 = ⟨1,_⟩.
   case isFalse n_m_not_zero =>
-    sorry
+    unfold get
+    split
+    case h_1 nn mm vv ll rr mm_le_nn max_height_difference_2 subtree_full2 _ he₁ he₂ he₃ =>
+      --aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      --okay, I know that he₁ is False.
+      --but reducing this wall of text to something the computer understands - I am frightened.
+      exfalso
+      revert he₁
+      split
+      case isTrue goLeft => --tactic split failed. This is going great.
+        exact match n, l, m_le_n, max_height_difference, subtree_full, n_m_not_zero, goLeft with
+        | (_+1), _, _, _, _, _, _ => by
+          apply Fin.ne_of_val_ne
+          simp
+      case isFalse goRight =>
+        apply Fin.ne_of_val_ne
+        simp
+      --okay, this wasn't that bad
+    case h_2 j j_lt_n_add_m nn mm vv ll rr mm_le_nn max_height_difference_2 subtree_full2 heap he₁ he₂ he₃ =>
+      --he₁ relates j to the other indices. This is the important thing here.
+      --it should be reducible to j = (l or r).heap.heapRemoveLastWithIndex.snd.snd
+      --or something like it.
+
+      --but first, let's get rid of mm and nn, and vv while at it.
+      -- which are equal to m, n, v, but we need to deduce this from he₃...
+      have : nn = n := by
+        have nn_e : nn = ll.length := rfl
+        have n_e : n = l.length := rfl
+        have llle : ll.length = (branch vv ll rr mm_le_nn max_height_difference_2 subtree_full2).leftLen (by simp) := rfl
+        have lle : l.length = (branch v l r m_le_n max_height_difference subtree_full).leftLen (by simp) := rfl
+        have ll_len_eq_l_len := heqSameLeftLen (congrArg (·+1) he₂) (by simp_arith) he₃
+        simp[←llle, ←lle] at ll_len_eq_l_len
+        rw[nn_e, n_e]
+        exact ll_len_eq_l_len.symm
+      subst nn
+      have : mm = m := by
+        have mm_e : mm = rr.length := rfl
+        have m_e : m = r.length := rfl
+        have rrre : rr.length = (branch vv ll rr mm_le_nn max_height_difference_2 subtree_full2).rightLen (by simp) := rfl
+        have rre : r.length = (branch v l r m_le_n max_height_difference subtree_full).rightLen (by simp) := rfl
+        have rr_len_eq_r_len := heqSameRightLen (congrArg (·+1) he₂) (by simp_arith) he₃
+        simp[←rrre, ←rre] at rr_len_eq_r_len
+        rw[mm_e, m_e]
+        exact rr_len_eq_r_len.symm
+      subst mm
+      simp at he₃
+      -- yeah, no more HEq fuglyness!
+      have : v = vv := he₃.left
+      subst vv
+      have : l = ll := he₃.right.left
+      subst ll
+      have : r = rr := he₃.right.right
+      subst rr
+      split at he₁
+      case isTrue goLeft =>
+        simp[goLeft]
+        exact match n, l, m_le_n, max_height_difference, subtree_full, n_m_not_zero, goLeft with
+        | (o+1), l, m_le_n, max_height_difference, subtree_full, n_m_not_zero, goLeft => by
+          simp at he₁
+          have he₁ := Fin.val_eq_of_eq he₁
+          simp at he₁
+          -- looking good, but let's clean up the Infoview a bit.
+          have : max_height_difference_2 = max_height_difference := rfl
+          subst max_height_difference_2
+          have : subtree_full2 = subtree_full := rfl
+          subst subtree_full2
+          rename_i del1 del2
+          clear del1 del2
+          have : j < o + 1 := by omega --from he₁. It has j = (blah : Fin (o+1)).val
+          simp[this]
+          subst j -- overkill, but unlike rw it works
+          apply heapRemoveLastWithIndexReturnsItemAtIndex
+          done
+      case isFalse goRight =>
+        simp[goRight]
+        simp at he₁
+        have he₁ := Fin.val_eq_of_eq he₁
+        simp at he₁
+        -- looking good, but let's clean up the Infoview a bit.
+        rename_i del1 del2
+        clear del1 del2
+        have : max_height_difference_2 = max_height_difference := rfl
+        subst max_height_difference_2
+        have : subtree_full2 = subtree_full := rfl
+        subst subtree_full2
+        have : ¬j<n := by omega --from he₁. It has j = something + n.
+        simp[this]
+        split
+        subst j
+        simp
+        apply heapRemoveLastWithIndexReturnsItemAtIndex
+        done
 
 private theorem CompleteTree.castZeroHeap (n m : Nat) (heap : CompleteTree α 0) (h₁ : 0=n+m) {le : α → α → Bool} : HeapPredicate (h₁ ▸ heap) le := by
   have h₂ : heap = (CompleteTree.empty : CompleteTree α 0) := by
