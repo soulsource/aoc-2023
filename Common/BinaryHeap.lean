@@ -47,11 +47,6 @@ def HeapPredicate {α : Type u} {n : Nat} (heap : CompleteTree α n) (le : α �
                               | .zero => true
                               | .succ o => le v (h.root (Nat.succ_pos o))
 
-structure BinaryHeap (α : Type u) (le : α → α → Bool) (n : Nat) where
-  tree : CompleteTree α n
-  valid : HeapPredicate tree le
-  wellDefinedLe : transitive_le le ∧ total_le le
-
 /--Please do not use this for anything meaningful. It's a debug function, with horrible performance.-/
 instance {α : Type u} [ToString α] : ToString (CompleteTree α n) where
   toString := λt ↦
@@ -354,12 +349,6 @@ theorem CompleteTree.heapPushIsHeap {α : Type u} {elem : α} {heap : CompleteTr
       <;> simp only [instDecidableEqBool, Bool.decEq, h, and_self]
 end
 
-def BinaryHeap.insert {α : Type u} {lt : α → α → Bool} {n : Nat} : α → BinaryHeap α lt n → BinaryHeap α lt (n+1)
-| elem, BinaryHeap.mk tree valid wellDefinedLe =>
-  let valid := tree.heapPushIsHeap valid wellDefinedLe.left wellDefinedLe.right
-  let tree := tree.heapPush lt elem
-  {tree, valid, wellDefinedLe}
-
 /--Helper function for CompleteTree.indexOf.-/
 def CompleteTree.indexOfAux {α : Type u} (heap : CompleteTree α o) (pred : α → Bool) (currentIndex : Nat) : Option (Fin (o+currentIndex)) :=
   match o, heap with
@@ -497,7 +486,7 @@ private theorem CompleteTree.heqSameRightLen {α : Type u} {n m : Nat} {a : Comp
   rfl
 
 /--Shows that the index and value returned by heapRemoveLastWithIndex are consistent.-/
-theorem CompleteTree.heapRemoveLastWithIndexReturnsItemAtIndex {α : Type u} {o : Nat} (heap : CompleteTree α (o+1)) : heap.get heap.heapRemoveLastWithIndex.snd.snd = heap.heapRemoveLastWithIndex.snd.fst := by
+private theorem CompleteTree.heapRemoveLastWithIndexReturnsItemAtIndex {α : Type u} {o : Nat} (heap : CompleteTree α (o+1)) : heap.get heap.heapRemoveLastWithIndex.snd.snd = heap.heapRemoveLastWithIndex.snd.fst := by
   unfold heapRemoveLastWithIndex heapRemoveLastAux
   split
   rename_i n m v l r m_le_n max_height_difference subtree_full
@@ -721,12 +710,6 @@ private theorem CompleteTree.heapRemoveLastIsHeap {α : Type u} {heap : Complete
 
 private theorem CompleteTree.heapRemoveLastWithIndexIsHeap {α : Type u} {heap : CompleteTree α (o+1)} {le : α → α → Bool} (h₁ : HeapPredicate heap le) (h₂ : transitive_le le) (h₃ : total_le le) : HeapPredicate (heap.heapRemoveLastWithIndex.fst) le :=
   heapRemoveLastAuxIsHeap _ _ _ h₁ h₂ h₃
-
-private def BinaryHeap.heapRemoveLast {α : Type u} {le : α → α → Bool} {n : Nat} : (BinaryHeap α le (n+1)) → BinaryHeap α le n × α
-| {tree, valid, wellDefinedLe} =>
-  let result := tree.heapRemoveLast
-  let resultValid := CompleteTree.heapRemoveLastIsHeap valid wellDefinedLe.left wellDefinedLe.right
-  ({ tree := result.fst, valid := resultValid, wellDefinedLe}, result.snd)
 
 /--
   Helper for CompleteTree.heapUpdateAt. Makes proofing heap predicate work in Lean 4.9
@@ -1162,12 +1145,6 @@ theorem CompleteTree.heapPopIsHeap {α : Type u} {n : Nat} (le : α → α → B
   unfold heapPop
   cases n <;> simp[h₂, heapUpdateRootIsHeap, wellDefinedLe]
 
-def BinaryHeap.RemoveRoot {α : Type u} {le : α → α → Bool} {n : Nat} : (BinaryHeap α le (n+1)) → (BinaryHeap α le n × α)
-| {tree, valid, wellDefinedLe} =>
-  let result := tree.heapPop le
-  let resultValid := CompleteTree.heapPopIsHeap le tree valid wellDefinedLe
-  ({ tree := result.fst, valid := resultValid, wellDefinedLe}, result.snd)
-
 /--Removes the element at a given index. Use `CompleteTree.indexOf` to find the respective index.-/
 def CompleteTree.heapRemoveAt {α : Type u} {n : Nat} (le : α → α → Bool) (index : Fin (n+1)) (heap : CompleteTree α (n+1)) : CompleteTree α n × α :=
   --Since we cannot even temporarily break the completeness property, we go with the
@@ -1204,13 +1181,36 @@ theorem CompleteTree.heapRemoveAtIsHeap {α : Type u} {n : Nat} (le : α → α 
     split
     <;> apply heapUpdateAtIsHeap <;> simp_all
 
-def BinaryHeap.RemoveAt {α : Type u} {le : α → α → Bool} {n : Nat} : (BinaryHeap α le (n+1)) → (Fin (n+1)) → (BinaryHeap α le n × α)
+end BinaryHeap
+-------------------------------------------------------------------------------------------------------
+
+structure BinaryHeap (α : Type u) (le : α → α → Bool) (n : Nat) where
+  tree : BinaryHeap.CompleteTree α n
+  valid : BinaryHeap.HeapPredicate tree le
+  wellDefinedLe : BinaryHeap.transitive_le le ∧ BinaryHeap.total_le le
+
+namespace BinaryHeap
+
+def push {α : Type u} {lt : α → α → Bool} {n : Nat} : α → BinaryHeap α lt n → BinaryHeap α lt (n+1)
+| elem, .mk tree valid wellDefinedLe =>
+  let valid := tree.heapPushIsHeap valid wellDefinedLe.left wellDefinedLe.right
+  let tree := tree.heapPush lt elem
+  {tree, valid, wellDefinedLe}
+
+def pop {α : Type u} {le : α → α → Bool} {n : Nat} : (BinaryHeap α le (n+1)) → (BinaryHeap α le n × α)
+| {tree, valid, wellDefinedLe} =>
+  let result := tree.heapPop le
+  let resultValid := CompleteTree.heapPopIsHeap le tree valid wellDefinedLe
+  ({ tree := result.fst, valid := resultValid, wellDefinedLe}, result.snd)
+
+def RemoveAt {α : Type u} {le : α → α → Bool} {n : Nat} : (BinaryHeap α le (n+1)) → (Fin (n+1)) → (BinaryHeap α le n × α)
 | {tree, valid, wellDefinedLe}, index =>
   let result := tree.heapRemoveAt le index
   let resultValid := CompleteTree.heapRemoveAtIsHeap le index tree valid wellDefinedLe
   ({ tree := result.fst, valid := resultValid, wellDefinedLe}, result.snd)
 
 -------------------------------------------------------------------------------------------------------
+
 
 private def TestHeap :=
   let ins : {n: Nat} → Nat → CompleteTree Nat n → CompleteTree Nat (n+1) := λ x y ↦ CompleteTree.heapPush (.≤.) x y
