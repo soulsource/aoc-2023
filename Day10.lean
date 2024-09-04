@@ -333,6 +333,11 @@ private theorem Option.get_unfold {α : Type u} {v : α} : (some v).get (rfl) = 
 private theorem Option.get_unfold' {α : Type u} {o : Option α} {v : α} (h₁ : o = some v) (h₂ : o.isSome) : o.get h₂ = v := by
   simp[h₁]
 
+private theorem Area.ParseLine_start_position (input : Area.Raw) (lines : List String) (h₁ : (Area.parseLines input lines).isOk) {index : Fin _} (h₂ : (Except.get (Area.parseLines input lines) h₁).start = some index) :
+  (Except.get (Area.parseLines input lines) h₁).fields[index]! = Tile.start := by
+  sorry
+
+
 private theorem Area.ParseRaw_start_position_aux :
   ∀ (input : String), (h₁ : (Area.parseRaw input).isOk) →
   match (Except.get (Area.parseRaw input) h₁).start with
@@ -342,9 +347,20 @@ private theorem Area.ParseRaw_start_position_aux :
   intros input h₁
   split
   case h_2 => trivial
-  case h_1 =>
-    generalize Day10.Area.parseRaw input = r at *
-    sorry
+  case h_1  maybeIndex index hi=>
+    clear maybeIndex
+    generalize hr: Day10.Area.parseRaw input = r at *
+    unfold Area.parseRaw at hr
+    simp at hr
+    split at hr
+    case isTrue => rw[←hr] at h₁; contradiction
+    case isFalse =>
+      split at hr
+      case isFalse => rw[←hr] at h₁; contradiction
+      case isTrue =>
+        subst r
+        apply ParseLine_start_position
+        assumption
 
 private theorem Array.getElem!_eq_getElem {α : Type u} [Inhabited α] {a : Array α} {index : Nat} (h : index < a.size ): a[index] = a[index]! := by
   unfold getElem getElem! instGetElem?OfGetElemOfDecidable Array.instGetElemNatLtSize decidableGetElem?
