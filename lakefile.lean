@@ -25,4 +25,4 @@ lean_exe «aoc-2023» where
   supportInterpreter := true
 
 require BinaryHeap from git
-  "https://github.com/soulsource/BinaryHeap"@"v0.1.0"
+  "https://github.com/soulsource/BinaryHeap"@"v0.1.1"

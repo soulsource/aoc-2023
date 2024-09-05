@@ -29,11 +29,41 @@ inductive Pipe
 | WN : Pipe
 deriving BEq
 
+instance : LawfulBEq Pipe where
+  eq_of_beq := by
+    intros a b
+    cases a <;> cases b
+    <;> simp
+    all_goals rfl
+  rfl := by
+    intro a
+    cases a
+    all_goals rfl
+
+
 inductive Tile
 | pipe : Pipe → Tile
 | ground : Tile
 | start : Tile
 deriving BEq
+
+instance : LawfulBEq Tile where
+  eq_of_beq := by
+    intros a b
+    cases a <;> cases b
+    <;> simp
+    all_goals try rfl
+    case pipe.pipe =>
+      intros h
+      exact eq_of_beq h
+  rfl := by
+    intro a
+    cases a
+    all_goals try rfl
+    case pipe =>
+      rename_i p
+      cases p
+      <;> rfl
 
 instance : Inhabited Tile where
   default := Tile.ground
@@ -335,11 +365,111 @@ private theorem Option.get_unfold {α : Type u} {v : α} : (some v).get (rfl) = 
 private theorem Option.get_unfold' {α : Type u} {o : Option α} {v : α} (h₁ : o = some v) (h₂ : o.isSome) : o.get h₂ = v := by
   simp[h₁]
 
+private theorem Array.getElem!_eq_getElem {α : Type u} [Inhabited α] {a : Array α} {index : Nat} (h : index < a.size ): a[index] = a[index]! := by
+  unfold getElem getElem! instGetElem?OfGetElemOfDecidable Array.instGetElemNatLtSize decidableGetElem?
+  simp
+  split
+  <;> rename_i blah
+  <;> simp[h] at blah
+  assumption
+
+private theorem Array.get_push {α : Type u} (arr : Array α) (v : α) (index : Nat) (h₁ : index < arr.size) : arr[index] = (arr.push v)[index]'(by simp[Nat.lt_succ.mpr (Nat.le_of_lt h₁)]) := by
+  cases arr
+  unfold Array.push getElem Array.instGetElemNatLtSize Array.get
+  simp
+  rw[List.getElem_append]
+
 private theorem Area.ParseLine_leaves_start_if_some (previous : Area.Raw) (pos : Nat) (line : Substring) (h₁ : previous.height > 0) {res : (Nat × Area.Raw)} (h₂ : (Area.parseLine previous pos line h₁) = Except.ok res) (h₃ : previous.start.isSome) : Fin.val <$> res.2.start = Fin.val <$> previous.start := by
-  sorry
+  unfold Area.parseLine at h₂
+  split at h₂
+  case isTrue => simp at h₂; rw[←h₂]
+  case isFalse h₄ =>
+    split at h₂ ; exact h₂.rec
+    case isFalse h₅ =>
+      unfold bind Monad.toBind Except.instMonad Except.bind at h₂
+      simp at h₂
+      split at h₂; simp at h₂
+      case h_2 d1 tile _ =>
+        clear d1
+        split at h₂; exact h₂.rec
+        exact Area.ParseLine_leaves_start_if_some  { width := previous.width, height := previous.height, start := previous.start, fields := previous.fields.push tile } (pos + 1) (line.drop 1) h₁ h₂ h₃
+termination_by previous.width - pos
 
 private theorem Area.ParseLine_only_adds_to_fields (previous : Area.Raw) (pos : Nat) (line : Substring) (h₁ : previous.height > 0) {res : (Nat × Area.Raw)} (h₂ : (Area.parseLine previous pos line h₁) = Except.ok res) (index : Fin (previous.fields.size)) : previous.fields[index.val]! = res.2.fields[index.val]! := by
-  sorry
+  unfold Area.parseLine at h₂
+  split at h₂
+  case isTrue => simp at h₂; rw[←h₂]
+  case isFalse h₃ =>
+    split at h₂; exact h₂.rec
+    case isFalse h₄ =>
+      unfold bind Monad.toBind Except.instMonad Except.bind at h₂
+      simp at h₂
+      split at h₂; simp at h₂
+      case h_2 d1 tile _ =>
+        clear d1
+        split at h₂
+        case' isFalse =>
+          have h₅ := Area.ParseLine_only_adds_to_fields { width := previous.width, height := previous.height, start := previous.start, fields := previous.fields.push tile } (pos + 1) (line.drop 1) h₁ h₂ (Fin.castLE (by simp) index)
+        case' isTrue =>
+          split at h₂; exact h₂.rec
+          have h₅ := Area.ParseLine_only_adds_to_fields { width := previous.width, height := previous.height, start := some ⟨previous.width * (previous.height - 1) + pos, _⟩, fields := previous.fields.push tile } (pos + 1) (line.drop 1) h₁ h₂ (Fin.castLE (by simp) index)
+        all_goals
+          simp at h₅
+          rw[←h₅]
+          have h₆ : ↑index < (previous.fields.push tile).size := by simp; exact Nat.lt_succ.mpr (Nat.le_of_lt index.isLt)
+          simp[←Array.getElem!_eq_getElem]
+          simp[←Array.getElem!_eq_getElem h₆]
+          apply Array.get_push
+termination_by previous.width - pos
+
+private theorem Area.ParseLine_start_at_tile (previous : Area.Raw) (pos : Nat) (line : Substring) (h₁ : previous.height > 0) (h₂ : previous.fields.size = previous.width * (previous.height - 1) + pos) (h₃ : previous.start = none) {res : Area.Raw} {added : Nat} (h₄ : (Area.parseLine previous pos line h₁) = Except.ok (added, res)) : match res.start with | none => True | some s => res.fields[s]! = Tile.start := by
+  split; trivial
+  case h_2 d1 index hindex =>
+    clear d1
+    unfold Area.parseLine at h₄
+    simp at h₄
+    split at h₄
+    case isTrue => simp at h₄; rw[h₄.right] at h₃; rw[hindex] at h₃; contradiction
+    case isFalse d2 =>
+      clear d2
+      split at h₄
+      case isTrue => exact h₄.rec
+      case isFalse h₅ =>
+        unfold bind Monad.toBind Except.instMonad Except.bind at h₄
+        simp at h₄
+        split at h₄; contradiction
+        case h_2 d3 t ht =>
+          clear d3
+          split at h₄
+          case isTrue h₆ =>
+            split at h₄; exact h₄.rec
+            case isFalse h₇ =>
+              have h₈ : (previous.fields.push t)[previous.width * (previous.height - 1) + pos]! = t := by
+                have := Array.get_push_eq previous.fields t
+                simp[h₂, Array.getElem!_eq_getElem] at this
+                assumption
+              have : t = Tile.start := (beq_iff_eq t Tile.start).mp h₆
+              subst t
+              have : previous.width * (previous.height - 1) + pos < previous.width * previous.height := by
+                have := Nat.mul_pred previous.width previous.height
+                simp only [Nat.pred_eq_sub_one] at this
+                rw[this]
+                have : previous.width ≤ previous.width*previous.height := Nat.le_mul_of_pos_right _ h₁
+                rw[←Nat.sub_add_comm this]
+                omega
+              have h₉ := Area.ParseLine_only_adds_to_fields { width := previous.width, height := previous.height, start := some ⟨previous.width * (previous.height - 1) + pos, this⟩, fields := previous.fields.push Tile.start } (pos + 1) (line.drop 1) h₁ h₄ ⟨previous.width * (previous.height - 1) + pos, (by simp_all)⟩
+              simp at h₉
+              have h₁₀ := Area.ParseLine_leaves_start_if_some { width := previous.width, height := previous.height, start := some ⟨previous.width * (previous.height - 1) + pos, this⟩, fields := previous.fields.push Tile.start } (pos + 1) (line.drop 1) h₁ h₄ rfl
+              simp[hindex] at h₁₀
+              simp[←h₁₀] at h₉ h₈
+              simp[←h₉]
+              assumption
+          case isFalse =>
+            have : (previous.fields.push t).size = previous.width * (previous.height - 1) + (pos + 1) := by simp_arith[h₂]
+            have h₆ := Area.ParseLine_start_at_tile { width := previous.width, height := previous.height, start := previous.start, fields := previous.fields.push t } (pos + 1) (line.drop 1) h₁ this h₃ h₄
+            simp[hindex] at h₆
+            assumption
+termination_by previous.width - pos
 
 private theorem Area.ParseLines_start_position (input : Area.Raw) (lines : List String) (h₁ : (Area.parseLines input lines).isOk) (h₀ : input.fields.size = input.width * input.height) (h₂ : match input.start with | .some i => input.fields[i]! = Tile.start | .none => True) :
   match (Except.get (Area.parseLines input lines) h₁).start with
@@ -400,7 +530,9 @@ private theorem Area.ParseLines_start_position (input : Area.Raw) (lines : List 
                   rw[hlo₂.right]
                   exact h₂
               case none =>
-                sorry
+                have h₆ := Area.ParseLine_start_at_tile { width := input.width, height := input.height + 1, start := Option.map (Fin.castLE (Nat.mul_le_succ_right _ _)) input.start, fields := input.fields } 0 l.toSubstring (Nat.succ_pos _) h₀ (by simp[his]) h₃
+                simp[ho] at h₆
+                assumption
             rw[←h₅ this]
             rfl
 
@@ -426,7 +558,7 @@ private theorem Area.ParseRaw_start_position_aux :
       case isFalse => rw[←hr] at h₁; contradiction
       case isTrue =>
         rename_i hs _
-        have : 0 < (String.splitTrim (fun x => x == '\n') input).length := by simp at hs; unfold List.isEmpty at hs; split at hs; contradiction; rename_i hx; simp[hx]
+        have : 0 < (String.splitTrim (fun x => x == '\n') input).length := by let hs := List.isEmpty_eq_false.mpr hs; unfold List.isEmpty at hs; split at hs; contradiction; rename_i hx; simp[hx]
         have := Area.ParseLines_start_position { width := (String.splitTrim (fun x => x == '\n') input)[0].length, height := 0, start := none, fields := #[] } (String.splitTrim (fun x => x == '\n') input) (hr.substr h₁)
         simp at this
         subst r
@@ -437,14 +569,6 @@ private theorem Area.ParseRaw_start_position_aux :
           simp at this
           subst index₂
           exact this
-
-private theorem Array.getElem!_eq_getElem {α : Type u} [Inhabited α] {a : Array α} {index : Nat} (h : index < a.size ): a[index] = a[index]! := by
-  unfold getElem getElem! instGetElem?OfGetElemOfDecidable Array.instGetElemNatLtSize decidableGetElem?
-  simp
-  split
-  <;> rename_i blah
-  <;> simp[h] at blah
-  assumption
 
 private theorem Area.ParseRaw_start_position :
   ∀ (input : String), (h₁ : (Area.parseRaw input).isOk) → (h₂ : (Except.get (Area.parseRaw input) h₁).start.isSome) → (Except.get (Area.parseRaw input) h₁).fields[(Except.get (Area.parseRaw input) h₁).start.get h₂]'((Area.ParseRaw_array_size input h₁).substr ((Except.get (Area.parseRaw input) h₁).start.get h₂).isLt) = Tile.start := by
