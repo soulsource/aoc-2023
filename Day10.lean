@@ -7,7 +7,18 @@ structure Coordinate (width : Nat) (height : Nat) where
   y : Fin height
 
 def Coordinate.toIndex {w h : Nat} (c : Coordinate w h) : Fin (w*h) :=
-  Fin.mk (c.x.val * c.y.val) (Nat.mul_lt_mul_of_lt_of_lt c.x.isLt c.y.isLt)
+  Fin.mk (c.x.val + w * c.y.val) (
+    Nat.le_pred_of_lt c.y.isLt
+      |> Nat.mul_le_mul_left w
+      |> Nat.add_le_add_iff_right.mpr
+      |> (Nat.mul_pred w h).subst (motive :=λx↦w * c.y.val + w ≤ x + w)
+      |> (Nat.sub_add_cancel (Nat.le_mul_of_pos_right w (Nat.zero_lt_of_lt c.y.isLt))).subst
+      |> (Nat.add_comm _ _).subst (motive := λx↦x ≤ w*h)
+      |> Nat.le_sub_of_add_le
+      |> Nat.lt_of_lt_of_le c.x.isLt
+      |> λx↦(Nat.add_lt_add_right) x (w * c.y.val)
+      |> (Nat.sub_add_cancel (Nat.le_of_lt ((Nat.mul_lt_mul_left (Nat.zero_lt_of_lt c.x.isLt)).mpr c.y.isLt))).subst
+  )
 
 def Coordinate.fromIndex {w h : Nat} (index : Fin (w*h)) : Coordinate w h :=
   have : w > 0 :=
@@ -19,6 +30,9 @@ def Coordinate.fromIndex {w h : Nat} (index : Fin (w*h)) : Coordinate w h :=
     x := ⟨index.val % w, Nat.mod_lt index.val this⟩
     y := ⟨index.val / w, Nat.div_lt_of_lt_mul index.isLt⟩
   }
+
+theorem Coordinate.toIndex_inv_fromIndex {w h : Nat} (index : Fin (w*h)) : Coordinate.toIndex (Coordinate.fromIndex index) = index := by
+  simp only [toIndex, fromIndex, Nat.mod_add_div, Fin.eta]
 
 inductive Pipe
 | NS : Pipe
@@ -76,6 +90,9 @@ structure Area where
   fields : Array Tile
   size_invariant : fields.size = width * height
   start_invariant : fields[start.toIndex] = Tile.start
+  -- It would also be possible to prove the inverse - that having an index that gives Tile.start
+  -- implies that this index is equal to start.toIndex, but that is not needed in the solution
+  -- I have a half-finished proof on a local branch.
 
 inductive Area.ParseError
 | NoInput
@@ -360,11 +377,6 @@ private theorem Except.get_unfold' {α : Type u1} {ε : Type u2} {e : Except ε 
 
 private theorem Except.get_pure {α : Type u1} (ε : Type u2) (v : α) : Except.get (α := α) (ε := ε) (pure v) (rfl) = v := rfl
 
-private theorem Option.get_unfold {α : Type u} {v : α} : (some v).get (rfl) = v := rfl
-
-private theorem Option.get_unfold' {α : Type u} {o : Option α} {v : α} (h₁ : o = some v) (h₂ : o.isSome) : o.get h₂ = v := by
-  simp[h₁]
-
 private theorem Array.getElem!_eq_getElem {α : Type u} [Inhabited α] {a : Array α} {index : Nat} (h : index < a.size ): a[index] = a[index]! := by
   unfold getElem getElem! instGetElem?OfGetElemOfDecidable Array.instGetElemNatLtSize decidableGetElem?
   simp
@@ -581,3 +593,85 @@ private theorem Area.ParseRaw_start_position :
     simp_all
     rw[←this]
     apply Array.getElem!_eq_getElem
+
+-- Finally.
+private def Area.parse (input : String) : Except Area.ParseError Area :=
+  let raw := Area.parseRaw input
+  match he : raw with
+  | Except.error e => throw e
+  | Except.ok vraw =>
+    match hs : vraw.start with
+    | .none => throw Area.ParseError.NoStart
+    | .some s =>
+      have except_ok := (Except.isOk_exists.mpr ⟨vraw, he⟩)
+      have hw : (Day10.Except.get (Day10.Area.parseRaw input) except_ok).width = vraw.width := by have : raw = Day10.Area.parseRaw input := rfl; simp[←this]; rw[Except.get_unfold' he]
+      have hh : (Day10.Except.get (Day10.Area.parseRaw input) except_ok).height = vraw.height := by have : raw = Day10.Area.parseRaw input := rfl; simp[←this]; rw[Except.get_unfold' he]
+      have finc : vraw.width * vraw.height = (Day10.Except.get (Day10.Area.parseRaw input) except_ok).width * (Day10.Except.get (Day10.Area.parseRaw input) except_ok).height := by rw[hh,hw]
+      have is_some : (Day10.Except.get (Day10.Area.parseRaw input) except_ok).start.isSome := by
+        have : raw = Day10.Area.parseRaw input := rfl
+        unfold Except.get
+        split
+        simp_all
+        rename_i d _ _ _ _
+        subst d
+        simp[hs]
+      have as := Area.ParseRaw_array_size input (Except.isOk_exists.mpr ⟨vraw, he⟩)
+      have as : vraw.fields.size = vraw.width * vraw.height := (Except.get_unfold' he except_ok).subst (motive := λx↦ x.fields.size = x.width * x.height) as
+      have sp := ParseRaw_start_position input (Except.isOk_exists.mpr ⟨vraw, he⟩) is_some
+      have sp : vraw.fields[(Coordinate.fromIndex s).toIndex] = Tile.start := by
+        simp[Except.get_unfold' he except_ok] at sp
+        simp[Coordinate.toIndex_inv_fromIndex]
+        rw[Array.getElem!_eq_getElem] at sp ⊢
+        have : ((Day10.Except.get (Day10.Area.parseRaw input) _).start.get is_some).val = s.val := by
+          unfold Option.get
+          split
+          rename_i s₂ _ h₁ _
+          have : (Day10.Except.get (Day10.Area.parseRaw input) except_ok) = vraw := by
+            rw[Except.get_unfold']
+            exact he
+          subst this
+          simp[hs] at h₁
+          exact Fin.ext_iff.mp h₁.symm
+        rw[this] at sp
+        exact sp
+
+      Except.ok {
+        width := vraw.width --: Nat
+        height := vraw.height --: Nat
+        start := Coordinate.fromIndex s -- Coordinate width height
+        fields := vraw.fields--: Array Tile
+        size_invariant := as --: fields.size = width * height
+        start_invariant := sp --: fields[start.toIndex] = Tile.start
+      }
+
+
+------------------------------------------------------------------------------------------------------------
+
+def Area.getTile (area : Area) (c : Coordinate area.width area.height) : Tile :=
+  area.fields[c.toIndex]'(area.size_invariant.substr c.toIndex.is_lt)
+
+def Area.can_connect_to (area : Area) (current : Coordinate area.width area.height) (other : Coordinate area.width area.height) : Prop :=
+  -- North is negative y, South positive y
+  -- West is negative x, East positive x
+  let is_succ := λ {n : Nat} (a b : Fin n) ↦ if h: a.succ.val < n then b = Fin.castLT a.succ h else False
+  match area.getTile current with
+  | .ground => False
+  | .start => False
+  | .pipe .NE => (is_succ current.x other.x ∧ current.y = other.y) ∨ (is_succ other.y current.y ∧ current.x = other.x)
+  | .pipe .ES => (is_succ current.x other.x ∧ current.y = other.y) ∨ (is_succ current.y other.y ∧ current.x = other.x)
+  | .pipe .SW => (is_succ other.x current.x ∧ current.y = other.y) ∨ (is_succ current.y other.y ∧ current.x = other.x)
+  | .pipe .WN => (is_succ other.x current.x ∧ current.y = other.y) ∨ (is_succ other.y current.y ∧ current.x = other.x)
+  | .pipe .WE => (is_succ current.x other.x ∧ current.y = other.y) ∨ (is_succ other.x current.x ∧ current.y = other.y)
+  | .pipe .NS => (is_succ other.y current.y ∧ current.x = other.x) ∨ (is_succ current.y other.y ∧ current.x = other.x)
+
+def Area.are_connected (area : Area) (current : Coordinate area.width area.height) (previous : Coordinate area.width area.height) : Prop :=
+  area.can_connect_to current previous ∧ area.can_connect_to previous current
+
+structure Area.PathHead where
+  area : Area
+  current : Coordinate area.width area.height
+  previous : Coordinate area.width area.height
+  current_can_connect_to_previous : area.can_connect_to current previous
+
+def Area.nextPathStep (last_step : Area.PathHead) : Option (Area.PathHead) :=
+  sorry
