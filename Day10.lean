@@ -979,7 +979,7 @@ def part1 (area : Area) : Option Nat := do
 where
   pathsMet := λ (ps : List $ Area.PathHead area) ↦ match ps with
   | [] => false
-  | p :: ps => ps.any λh ↦ h.current = p.current
+  | p :: ps => ps.any λh ↦ h.current = p.current || pathsMet ps
   noSolution := λ (ps : List $ Area.PathHead area) ↦ match ps with
   | [] => true
   | _ :: [] => true
