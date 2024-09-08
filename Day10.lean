@@ -5,6 +5,7 @@ namespace Day10
 structure Coordinate (width : Nat) (height : Nat) where
   x : Fin width
   y : Fin height
+deriving DecidableEq
 
 def Coordinate.toIndex {w h : Nat} (c : Coordinate w h) : Fin (w*h) :=
   Fin.mk (c.x.val + w * c.y.val) (
@@ -223,7 +224,7 @@ private def Area.parseLines (previous : Area.Raw) (input : List String) : Except
       throw Area.ParseError.NotRectangular
 
 private def Area.parseRaw (input : String) : Except Area.ParseError Area.Raw :=
-  let lines := input.splitTrim (· == '\n')
+  let lines := input.trim.splitTrim (· == '\n')
   if h₁ : lines.isEmpty then
     throw Area.ParseError.NoInput
   else
@@ -629,8 +630,8 @@ private theorem Area.ParseRaw_start_position_aux :
       case isFalse => rw[←hr] at h₁; contradiction
       case isTrue =>
         rename_i hs _
-        have : 0 < (String.splitTrim (fun x => x == '\n') input).length := by let hs := List.isEmpty_eq_false.mpr hs; unfold List.isEmpty at hs; split at hs; contradiction; rename_i hx; simp[hx]
-        have := Area.ParseLines_start_position { width := (String.splitTrim (fun x => x == '\n') input)[0].length, height := 0, start := none, fields := #[] } (String.splitTrim (fun x => x == '\n') input) (hr.substr h₁)
+        have : 0 < (String.splitTrim (fun x => x == '\n') input.trim).length := by let hs := List.isEmpty_eq_false.mpr hs; unfold List.isEmpty at hs; split at hs; contradiction; rename_i hx; simp[hx]
+        have := Area.ParseLines_start_position { width := (String.splitTrim (fun x => x == '\n') input.trim)[0].length, height := 0, start := none, fields := #[] } (String.splitTrim (fun x => x == '\n') input.trim) (hr.substr h₁)
         simp at this
         subst r
         split at this
@@ -842,42 +843,41 @@ theorem Coordinate.go_south_is_south_of (area : Area) (c o : Coordinate area.wid
 def Area.are_connected (area : Area) (current : Coordinate area.width area.height) (previous : Coordinate area.width area.height) : Prop :=
   area.can_connect_to current previous ∧ area.can_connect_to previous current
 
-structure Area.PathHead where
-  area : Area
+structure Area.PathHead (area : Area) where
   current : Coordinate area.width area.height
   previous : Coordinate area.width area.height
   current_can_connect_to_previous : area.can_connect_to current previous
 
-structure Area.BidirPathHead extends Area.PathHead where
+structure Area.BidirPathHead (area : Area) extends Area.PathHead area where
   previous_can_connect_to_current : area.can_connect_to previous current
 
-private theorem Area.PathHead.current_not_start_not_ground (pathHead : Area.PathHead) : pathHead.area[pathHead.current] ≠ Tile.ground ∧ pathHead.area[pathHead.current] ≠ Tile.start :=
-  have h₁ : pathHead.area[pathHead.current] ≠ Tile.ground := by
-    cases ht : (pathHead.area[pathHead.current] == Tile.ground) <;> simp at ht
+private theorem Area.PathHead.current_not_start_not_ground (pathHead : Area.PathHead area) : area[pathHead.current] ≠ Tile.ground ∧ area[pathHead.current] ≠ Tile.start :=
+  have h₁ : area[pathHead.current] ≠ Tile.ground := by
+    cases ht : (area[pathHead.current] == Tile.ground) <;> simp at ht
     case false => assumption
     case true =>
       cases pathHead.current_can_connect_to_previous <;> simp_all
-  have h₂ : pathHead.area[pathHead.current] ≠ Tile.start := by
-    cases ht : (pathHead.area[pathHead.current] == Tile.start) <;> simp at ht
+  have h₂ : area[pathHead.current] ≠ Tile.start := by
+    cases ht : (area[pathHead.current] == Tile.start) <;> simp at ht
     case false => assumption
     case true =>
       cases pathHead.current_can_connect_to_previous <;> simp_all
   And.intro h₁ h₂
 
 section
-variable (last_step : Area.PathHead)
-local infixl:55 "is_west_of" => last_step.area.is_west_of
-local infixl:55 "is_north_of" => last_step.area.is_north_of
-local infixl:55 "is_east_of" => last_step.area.is_east_of
-local infixl:55 "is_south_of" => last_step.area.is_south_of
+variable (area : Area)
+local infixl:55 "is_west_of" => area.is_west_of
+local infixl:55 "is_north_of" => area.is_north_of
+local infixl:55 "is_east_of" => area.is_east_of
+local infixl:55 "is_south_of" => area.is_south_of
 
-private def Area.nextPathStep : Option (Area.BidirPathHead) :=
-  let can_connect_to_current := (last_step.area.can_connect_to · last_step.current)
-  let currentTile := last_step.area[last_step.current]
-  have h₀ : last_step.area[last_step.current] = currentTile := rfl
+private def Area.nextPathStep (last_step: Area.PathHead area) : Option (Area.BidirPathHead area) :=
+  let can_connect_to_current := (area.can_connect_to · last_step.current)
+  let currentTile := area[last_step.current]'(And.intro rfl rfl)
+  have h₀ : area[last_step.current] = currentTile := rfl
   have ⟨(_h₁ : currentTile ≠ Tile.ground), (_h₂ : currentTile ≠ Tile.start)⟩ := Area.PathHead.current_not_start_not_ground last_step
 
-  let next : Option $ (next : Coordinate last_step.area.width last_step.area.height) ×' (last_step.area.can_connect_to last_step.current next) := match h₃ : currentTile with
+  let next : Option $ (next : Coordinate area.width area.height) ×' (area.can_connect_to last_step.current next) := match h₃ : currentTile with
   | .pipe .NE =>
     if h₄ : last_step.previous is_north_of last_step.current then
       last_step.current.goEast.mapWithProof λ next h₅ ↦
@@ -937,7 +937,6 @@ private def Area.nextPathStep : Option (Area.BidirPathHead) :=
   next.bind λ (PSigma.mk next h₇) ↦
     if h₆ : can_connect_to_current next then
       some {
-        area := last_step.area
         current := next
         previous := last_step.current
         current_can_connect_to_previous := h₆
@@ -948,12 +947,11 @@ private def Area.nextPathStep : Option (Area.BidirPathHead) :=
 end
 
 def part1 (area : Area) : Option Nat := do
-  let starts : List (Area.PathHead) :=
+  let mut paths : List (Area.PathHead area) :=
     [area.start.goNorth, area.start.goEast, area.start.goSouth, area.start.goWest]
     |> .filterMap λ c ↦ c.bind λc ↦
       if h: area.can_connect_to c area.start then
         some {
-          area := area
           current := c
           previous := area.start
           current_can_connect_to_previous := h
@@ -961,27 +959,52 @@ def part1 (area : Area) : Option Nat := do
       else
         none
 
-  let result : Option Nat := none
   let mut steps := 1
-  while steps * 2 ≤ area.width * area.height do --check is actually redundant, but I'm too lazy to prove
-
-    sorry
-  result
+  -- The condition in the while-loop is not needed. The program always terminates, as the
+  -- search space (Coordinate width height) is finite, paths cannot cross, and all closed
+  -- paths have an even number of steps. But I'm too lazy to prove this now, so, while-loop.
+  -- It's ≤ instead of < here, because there might still be a solution for
+  -- steps * 2 = area.width * area.height. Take this simple grid, for instance:
+  --
+  -- S7    01
+  -- LJ    12
+  while steps * 2 ≤ area.width * area.height do
+    if noSolution paths then
+      none
+    if pathsMet paths then
+      return steps
+    steps := steps + 1
+    paths := paths.filterMap (Functor.map Area.BidirPathHead.toPathHead ∘ area.nextPathStep)
+  none
 where
-  pathsMet := λ (ps : List Area.PathHead) ↦ match ps with
+  pathsMet := λ (ps : List $ Area.PathHead area) ↦ match ps with
   | [] => false
-  | p :: ps => ps.any λh ↦ sorry --h.current = p.current
+  | p :: ps => ps.any λh ↦ h.current = p.current
+  noSolution := λ (ps : List $ Area.PathHead area) ↦ match ps with
+  | [] => true
+  | _ :: [] => true
+  | _ => false
 
 ------------------------------------------------------------------------------------------------------------
+open DayPart
+instance : Parse ⟨10, by simp⟩ (ι := Area) where
+  parse := Except.mapError toString ∘ Area.parse
+
+instance : Part ⟨10,_⟩ Parts.One (ι := Area) (ρ := Nat) where
+  run := part1
 
 section Test
-
+------------------------------------------------------------------------------------------------------------
 def testData : String := "7-F7-
 .FJ|7
 SJLL7
 |F--J
 LJ.LJ"
 
-#eval (Area.parse testData)
+#eval
+  let area := (Area.parse testData)
+  match area with
+  | .ok a => part1 a
+  | .error e => none
 
 end Test

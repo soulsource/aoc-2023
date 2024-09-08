@@ -21,24 +21,25 @@ private def try_run_day_part_impl : {ι ρ: Type} →  (d : Days) → (p : Parts
 
 def try_run_day_part (day : Days) (part : Parts) (data : String) : IO String :=
   match day, part with
-  | ⟨1,_⟩, Parts.One => try_run_day_part_impl ⟨1,_⟩ Parts.One data
-  | ⟨1,_⟩, Parts.Two => try_run_day_part_impl ⟨1,_⟩ Parts.Two data
-  | ⟨2,_⟩, Parts.One => try_run_day_part_impl ⟨2,_⟩ Parts.One data
-  | ⟨2,_⟩, Parts.Two => try_run_day_part_impl ⟨2,_⟩ Parts.Two data
-  | ⟨3,_⟩, Parts.One => try_run_day_part_impl ⟨3,_⟩ Parts.One data
-  | ⟨3,_⟩, Parts.Two => try_run_day_part_impl ⟨3,_⟩ Parts.Two data
-  | ⟨4,_⟩, Parts.One => try_run_day_part_impl ⟨4,_⟩ Parts.One data
-  | ⟨4,_⟩, Parts.Two => try_run_day_part_impl ⟨4,_⟩ Parts.Two data
-  | ⟨5,_⟩, Parts.One => try_run_day_part_impl ⟨5,_⟩ Parts.One data
-  | ⟨5,_⟩, Parts.Two => try_run_day_part_impl ⟨5,_⟩ Parts.Two data
-  | ⟨6,_⟩, Parts.One => try_run_day_part_impl ⟨6,_⟩ Parts.One data
-  | ⟨6,_⟩, Parts.Two => try_run_day_part_impl ⟨6,_⟩ Parts.Two data
-  | ⟨7,_⟩, Parts.One => try_run_day_part_impl ⟨7,_⟩ Parts.One data
-  | ⟨7,_⟩, Parts.Two => try_run_day_part_impl ⟨7,_⟩ Parts.Two data
-  | ⟨8,_⟩, Parts.One => try_run_day_part_impl ⟨8,_⟩ Parts.One data
-  | ⟨8,_⟩, Parts.Two => try_run_day_part_impl ⟨8,_⟩ Parts.Two data
-  | ⟨9,_⟩, Parts.One => try_run_day_part_impl ⟨9,_⟩ Parts.One data
-  | ⟨9,_⟩, Parts.Two => try_run_day_part_impl ⟨9,_⟩ Parts.Two data
+  |  ⟨1,_⟩, Parts.One => try_run_day_part_impl  ⟨1,_⟩ Parts.One data
+  |  ⟨1,_⟩, Parts.Two => try_run_day_part_impl  ⟨1,_⟩ Parts.Two data
+  |  ⟨2,_⟩, Parts.One => try_run_day_part_impl  ⟨2,_⟩ Parts.One data
+  |  ⟨2,_⟩, Parts.Two => try_run_day_part_impl  ⟨2,_⟩ Parts.Two data
+  |  ⟨3,_⟩, Parts.One => try_run_day_part_impl  ⟨3,_⟩ Parts.One data
+  |  ⟨3,_⟩, Parts.Two => try_run_day_part_impl  ⟨3,_⟩ Parts.Two data
+  |  ⟨4,_⟩, Parts.One => try_run_day_part_impl  ⟨4,_⟩ Parts.One data
+  |  ⟨4,_⟩, Parts.Two => try_run_day_part_impl  ⟨4,_⟩ Parts.Two data
+  |  ⟨5,_⟩, Parts.One => try_run_day_part_impl  ⟨5,_⟩ Parts.One data
+  |  ⟨5,_⟩, Parts.Two => try_run_day_part_impl  ⟨5,_⟩ Parts.Two data
+  |  ⟨6,_⟩, Parts.One => try_run_day_part_impl  ⟨6,_⟩ Parts.One data
+  |  ⟨6,_⟩, Parts.Two => try_run_day_part_impl  ⟨6,_⟩ Parts.Two data
+  |  ⟨7,_⟩, Parts.One => try_run_day_part_impl  ⟨7,_⟩ Parts.One data
+  |  ⟨7,_⟩, Parts.Two => try_run_day_part_impl  ⟨7,_⟩ Parts.Two data
+  |  ⟨8,_⟩, Parts.One => try_run_day_part_impl  ⟨8,_⟩ Parts.One data
+  |  ⟨8,_⟩, Parts.Two => try_run_day_part_impl  ⟨8,_⟩ Parts.Two data
+  |  ⟨9,_⟩, Parts.One => try_run_day_part_impl  ⟨9,_⟩ Parts.One data
+  |  ⟨9,_⟩, Parts.Two => try_run_day_part_impl  ⟨9,_⟩ Parts.Two data
+  | ⟨10,_⟩, Parts.One => try_run_day_part_impl ⟨10,_⟩ Parts.One data
   | _, _ => throw $ IO.userError "The requested combination of day/part has not been implemented yet."
 
 def main (parameters : List String): IO Unit := do
