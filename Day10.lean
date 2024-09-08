@@ -31,6 +31,36 @@ def Coordinate.fromIndex {w h : Nat} (index : Fin (w*h)) : Coordinate w h :=
     y := ⟨index.val / w, Nat.div_lt_of_lt_mul index.isLt⟩
   }
 
+def Coordinate.goEast (c : Coordinate w h) : Option (Coordinate w h) :=
+  if h : c.x.succ.val < w then
+    some { c with x:= Fin.castLT c.x.succ h}
+  else
+    none
+
+def Coordinate.goSouth (c : Coordinate w h) : Option (Coordinate w h) :=
+  if h : c.y.succ.val < h then
+    some { c with y := Fin.castLT c.y.succ h}
+  else
+    none
+
+def Coordinate.goWest (c : Coordinate w h) : Option (Coordinate w h) :=
+  if h : ⟨0,Nat.zero_lt_of_lt c.x.isLt⟩ < c.x then
+    have : Fin.castLT c.x (Nat.lt_trans c.x.isLt (Nat.lt_succ_self _)) ≠ 0 := by
+      simp only [←Fin.val_ne_iff, Nat.succ_eq_add_one, Fin.coe_castLT, Fin.val_zero]
+      exact (Nat.ne_of_lt h).symm
+    some { c with x := (Fin.castLT c.x (Nat.lt_trans c.x.isLt (Nat.lt_succ_self _))).pred this}
+  else
+    none
+
+def Coordinate.goNorth (c : Coordinate w h) : Option (Coordinate w h) :=
+  if h : ⟨0,Nat.zero_lt_of_lt c.y.isLt⟩ < c.y then
+    have : Fin.castLT c.y (Nat.lt_trans c.y.isLt (Nat.lt_succ_self _)) ≠ 0 := by
+      simp only [←Fin.val_ne_iff, Nat.succ_eq_add_one, Fin.coe_castLT, Fin.val_zero]
+      exact (Nat.ne_of_lt h).symm
+    some { c with y := (Fin.castLT c.y (Nat.lt_trans c.y.isLt (Nat.lt_succ_self _))).pred this}
+  else
+    none
+
 theorem Coordinate.toIndex_inv_fromIndex {w h : Nat} (index : Fin (w*h)) : Coordinate.toIndex (Coordinate.fromIndex index) = index := by
   simp only [toIndex, fromIndex, Nat.mod_add_div, Fin.eta]
 
@@ -94,12 +124,41 @@ structure Area where
   -- implies that this index is equal to start.toIndex, but that is not needed in the solution
   -- I have a half-finished proof on a local branch.
 
+instance : ToString Area where
+  toString := λ
+  | {width, height, start, fields, ..} => Id.run do
+    let mut s := s!"Width: {width}, Height: {height}, Start x: {start.x}, Start y: {start.y}"
+    let mut p := 0
+    for t in fields do
+      if p % width = 0 then
+        s := s.push '\n'
+      s := s.push $ toChar t
+      p := p + 1
+    s
+  where toChar := λ
+  | Tile.ground => ' '
+  | Tile.start => 'X'
+  | Tile.pipe .NE => '└'
+  | Tile.pipe .ES => '┌'
+  | Tile.pipe .SW => '┐'
+  | Tile.pipe .WN => '┘'
+  | Tile.pipe .NS => '│'
+  | Tile.pipe .WE => '─'
+
 inductive Area.ParseError
 | NoInput
-| UnexpectedCharacter
+| UnexpectedCharacter : Char → Area.ParseError
 | NoStart
 | MoreThanOneStart
 | NotRectangular
+
+instance : ToString Area.ParseError where
+  toString := λ
+  | .NoInput => "Parse Error: No input supplied."
+  | .UnexpectedCharacter c => s!"Parse Error: Unexpected character in input. Expected '|', '-', 'L', 'J', '7', 'F', or '.', but got {c}."
+  | .NoStart => "Parse Error: The input did not contain a Start field ('s')."
+  | .MoreThanOneStart => "Parse Error: Multiple Start values supplied."
+  | .NotRectangular => "Parse Error: Input was not rectangular (line lengths did not match)."
 
 private structure Area.Raw where
   width : Nat
@@ -114,7 +173,7 @@ private def Area.parseLine (previous : Area.Raw) (pos : Nat) (line : Substring) 
   else if h₀ : pos ≥ previous.width then
     throw Area.ParseError.NotRectangular
   else do
-    let tile ← Option.toExcept Area.ParseError.UnexpectedCharacter $ parseCharacter line.front
+    let tile ← Except.mapError Area.ParseError.UnexpectedCharacter $ parseCharacter line.front
     let rest := line.drop 1
     if tile == Tile.start then
       if previous.start.isSome then
@@ -132,16 +191,16 @@ private def Area.parseLine (previous : Area.Raw) (pos : Nat) (line : Substring) 
     else
       Area.parseLine {previous with fields := previous.fields.push tile} (pos + 1) rest hh
 termination_by previous.width - pos
-where parseCharacter : Char → Option Tile := λ c ↦ match c with
-  | '|' => some $ Tile.pipe Pipe.NS
-  | '-' => some $ Tile.pipe Pipe.WE
-  | 'L' => some $ Tile.pipe Pipe.NE
-  | 'J' => some $ Tile.pipe Pipe.WN
-  | '7' => some $ Tile.pipe Pipe.SW
-  | 'F' => some $ Tile.pipe Pipe.ES
-  | 'S' => some Tile.start
-  | '.' => some Tile.ground
-  | _ => none
+where parseCharacter : Char → Except Char Tile := λ c ↦ match c with
+  | '|' => Except.ok $ Tile.pipe Pipe.NS
+  | '-' => Except.ok $ Tile.pipe Pipe.WE
+  | 'L' => Except.ok $ Tile.pipe Pipe.NE
+  | 'J' => Except.ok $ Tile.pipe Pipe.WN
+  | '7' => Except.ok $ Tile.pipe Pipe.SW
+  | 'F' => Except.ok $ Tile.pipe Pipe.ES
+  | 'S' => Except.ok Tile.start
+  | '.' => Except.ok Tile.ground
+  | c => Except.error c
 
 private theorem Nat.mul_le_succ_right : ∀ (n m : Nat), n*m ≤ n*m.succ := by
   intro n m
@@ -206,12 +265,12 @@ private theorem Area.ParseLine_adds_returned_count (previous : Area.Raw) (pos : 
       simp at h₃
       cases h₄ : (Day10.Area.parseLine.parseCharacter line.front)
       <;> simp[h₄, Option.toExcept, Except.bind] at h₃
-      case none => rw[←h₃] at h₂; contradiction
-      case some =>
+      case error => rw[←h₃] at h₂; contradiction
+      case ok =>
         split at h₃
         case h_1 => rw[←h₃] at h₂; contradiction
         case h_2 d1 h₅ char₂ d2 char h₆ =>
-        simp[Except.pure] at h₆
+        simp[Except.mapError] at h₆
         subst char₂
         clear d1 d2
         split at h₃
@@ -258,12 +317,12 @@ private theorem Area.ParseLine_leaves_width_and_height (previous : Area.Raw) (po
       simp at h₃
       cases h₄ : (Day10.Area.parseLine.parseCharacter line.front)
       <;> simp[h₄, Option.toExcept, Except.bind] at h₃
-      case none => rw[←h₃] at h₂; contradiction
-      case some =>
+      case error => rw[←h₃] at h₂; contradiction
+      case ok =>
         split at h₃
         case h_1 => rw[←h₃] at h₂; contradiction
         case h_2 d1 h₅ char₂ d2 char h₆ =>
-        simp[Except.pure] at h₆
+        simp[Except.mapError] at h₆
         subst char₂
         clear d1 d2
         split at h₃
@@ -644,25 +703,141 @@ private def Area.parse (input : String) : Except Area.ParseError Area :=
         start_invariant := sp --: fields[start.toIndex] = Tile.start
       }
 
-
 ------------------------------------------------------------------------------------------------------------
 
 def Area.getTile (area : Area) (c : Coordinate area.width area.height) : Tile :=
   area.fields[c.toIndex]'(area.size_invariant.substr c.toIndex.is_lt)
 
-def Area.can_connect_to (area : Area) (current : Coordinate area.width area.height) (other : Coordinate area.width area.height) : Prop :=
-  -- North is negative y, South positive y
-  -- West is negative x, East positive x
-  let is_succ := λ {n : Nat} (a b : Fin n) ↦ if h: a.succ.val < n then b = Fin.castLT a.succ h else False
-  match area.getTile current with
-  | .ground => False
-  | .start => False
-  | .pipe .NE => (is_succ current.x other.x ∧ current.y = other.y) ∨ (is_succ other.y current.y ∧ current.x = other.x)
-  | .pipe .ES => (is_succ current.x other.x ∧ current.y = other.y) ∨ (is_succ current.y other.y ∧ current.x = other.x)
-  | .pipe .SW => (is_succ other.x current.x ∧ current.y = other.y) ∨ (is_succ current.y other.y ∧ current.x = other.x)
-  | .pipe .WN => (is_succ other.x current.x ∧ current.y = other.y) ∨ (is_succ other.y current.y ∧ current.x = other.x)
-  | .pipe .WE => (is_succ current.x other.x ∧ current.y = other.y) ∨ (is_succ other.x current.x ∧ current.y = other.y)
-  | .pipe .NS => (is_succ other.y current.y ∧ current.x = other.x) ∨ (is_succ current.y other.y ∧ current.x = other.x)
+instance {w h : Nat} : GetElem Area (Coordinate w h) Tile (λ c _ ↦ c.width = w ∧ c.height = h) where
+  getElem := λa c h₁ ↦ a.getTile (h₁.left▸h₁.right▸c)
+
+-- North is negative y, South positive y
+-- West is negative x, East positive x
+private def Area.can_connect_to.is_succ := λ {n : Nat} (a b : Fin n) ↦ if h: a.succ.val < n then b = Fin.castLT a.succ h else False
+private def Area.is_west_of (area : Area) (current other : Coordinate area.width area.height) : Prop := (can_connect_to.is_succ current.x other.x ∧ current.y = other.y)
+private def Area.is_north_of (area : Area) (current other : Coordinate area.width area.height) : Prop := (can_connect_to.is_succ current.y other.y ∧ current.x = other.x)
+private def Area.is_east_of (area : Area) (current other : Coordinate area.width area.height) : Prop := area.is_west_of other current
+private def Area.is_south_of (area : Area) (current other : Coordinate area.width area.height) : Prop := area.is_north_of other current
+
+instance {n : Nat} {a b : Fin n} : Decidable (Area.can_connect_to.is_succ a b) :=
+  if h : a.succ.val < n then
+    have : (Area.can_connect_to.is_succ a b) = (b = Fin.castLT a.succ h) := (dite_cond_eq_true (eq_true h)).subst rfl
+    if h₂ : b = Fin.castLT a.succ h then
+      Decidable.isTrue (this▸h₂)
+    else
+      Decidable.isFalse (this▸h₂)
+  else
+    have : Area.can_connect_to.is_succ a b = False := (dite_cond_eq_false (eq_false h)).subst (rfl)
+    this▸(inferInstance : Decidable False)
+
+instance {area : Area} {current other : Coordinate area.width area.height} : Decidable (Area.is_west_of area current other) := (inferInstance : Decidable (And _ _))
+instance {area : Area} {current other : Coordinate area.width area.height} : Decidable (Area.is_east_of area current other) := (inferInstance : Decidable (And _ _))
+instance {area : Area} {current other : Coordinate area.width area.height} : Decidable (Area.is_north_of area current other) := (inferInstance : Decidable (And _ _))
+instance {area : Area} {current other : Coordinate area.width area.height} : Decidable (Area.is_south_of area current other) := (inferInstance : Decidable (And _ _))
+
+private inductive Area.can_connect_to (area : Area) (current other : Coordinate area.width area.height) : Prop where
+  | NE : area[current] = Tile.pipe .NE → area.is_north_of other current ∨ area.is_east_of other current → Area.can_connect_to area current other
+  | ES : area[current] = Tile.pipe .ES → area.is_south_of other current ∨ area.is_east_of other current → Area.can_connect_to area current other
+  | SW : area[current] = Tile.pipe .SW → area.is_south_of other current ∨ area.is_west_of other current → Area.can_connect_to area current other
+  | WN : area[current] = Tile.pipe .WN → area.is_north_of other current ∨ area.is_west_of other current → Area.can_connect_to area current other
+  | WE : area[current] = Tile.pipe .WE → area.is_west_of other current ∨ area.is_east_of other current → Area.can_connect_to area current other
+  | NS : area[current] = Tile.pipe .NS → area.is_north_of other current ∨ area.is_south_of other current → Area.can_connect_to area current other
+
+instance {area : Area} {current other : Coordinate area.width area.height} : Decidable (Area.can_connect_to area current other) :=
+  match h : area[current] with
+  | Tile.ground | Tile.start =>
+    have : Area.can_connect_to area current other → False := by intro x; cases x <;> rename_i hx _ <;> rw[h] at hx <;> contradiction
+    Decidable.isFalse this
+  | Tile.pipe .NE =>
+    if h₁ : area.is_north_of other current ∨ area.is_east_of other current then
+      Decidable.isTrue $ Area.can_connect_to.NE h h₁
+    else
+      have : Area.can_connect_to area current other → False := by
+        intro x; cases x <;> rename_i hx hx₂ <;> rw[hx] at h
+        all_goals
+          try simp at h
+          try exact absurd hx₂ h₁
+      Decidable.isFalse this
+  | Tile.pipe .ES =>
+    if h₁ : area.is_south_of other current ∨ area.is_east_of other current then
+      Decidable.isTrue $ Area.can_connect_to.ES h h₁
+    else
+      have : Area.can_connect_to area current other → False := by
+        intro x; cases x <;> rename_i hx hx₂ <;> rw[hx] at h
+        all_goals
+          try simp at h
+          try exact absurd hx₂ h₁
+      Decidable.isFalse this
+  | Tile.pipe .SW =>
+    if h₁ : area.is_south_of other current ∨ area.is_west_of other current then
+      Decidable.isTrue $ Area.can_connect_to.SW h h₁
+    else
+      have : Area.can_connect_to area current other → False := by
+        intro x; cases x <;> rename_i hx hx₂ <;> rw[hx] at h
+        all_goals
+          try simp at h
+          try exact absurd hx₂ h₁
+      Decidable.isFalse this
+  | Tile.pipe .WN =>
+    if h₁ : area.is_north_of other current ∨ area.is_west_of other current then
+      Decidable.isTrue $ Area.can_connect_to.WN h h₁
+    else
+      have : Area.can_connect_to area current other → False := by
+        intro x; cases x <;> rename_i hx hx₂ <;> rw[hx] at h
+        all_goals
+          try simp at h
+          try exact absurd hx₂ h₁
+      Decidable.isFalse this
+  | Tile.pipe .NS =>
+    if h₁ : area.is_north_of other current ∨ area.is_south_of other current then
+      Decidable.isTrue $ Area.can_connect_to.NS h h₁
+    else
+      have : Area.can_connect_to area current other → False := by
+        intro x; cases x <;> rename_i hx hx₂ <;> rw[hx] at h
+        all_goals
+          try simp at h
+          try exact absurd hx₂ h₁
+      Decidable.isFalse this
+  | Tile.pipe .WE =>
+    if h₁ : area.is_west_of other current ∨ area.is_east_of other current then
+      Decidable.isTrue $ Area.can_connect_to.WE h h₁
+    else
+      have : Area.can_connect_to area current other → False := by
+        intro x; cases x <;> rename_i hx hx₂ <;> rw[hx] at h
+        all_goals
+          try simp at h
+          try exact absurd hx₂ h₁
+      Decidable.isFalse this
+
+theorem Coordinate.go_east_is_east_of (area : Area) (c o : Coordinate area.width area.height) (h₁ : c.goEast = some o) : area.is_east_of o c := by
+  unfold Coordinate.goEast at h₁
+  split at h₁ <;> simp at h₁
+  case isTrue h₂ =>
+    unfold Area.is_east_of Area.is_west_of Area.can_connect_to.is_succ
+    simp[←h₁]
+    exact h₂
+
+theorem Coordinate.go_west_is_west_of (area : Area) (c o : Coordinate area.width area.height) (h₁ : c.goWest = some o) : area.is_west_of o c := by
+  unfold Coordinate.goWest at h₁
+  split at h₁ <;> simp at h₁
+  case isTrue h₂ =>
+    unfold Area.is_west_of Area.can_connect_to.is_succ
+    simp[←h₁, Fin.ext_iff]
+
+theorem Coordinate.go_north_is_north_of (area : Area) (c o : Coordinate area.width area.height) (h₁ : c.goNorth = some o) : area.is_north_of o c := by
+  unfold Coordinate.goNorth at h₁
+  split at h₁ <;> simp at h₁
+  case isTrue h₂ =>
+    unfold Area.is_north_of Area.can_connect_to.is_succ
+    simp[←h₁, Fin.ext_iff]
+
+theorem Coordinate.go_south_is_south_of (area : Area) (c o : Coordinate area.width area.height) (h₁ : c.goSouth = some o) : area.is_south_of o c := by
+  unfold Coordinate.goSouth at h₁
+  split at h₁ <;> simp at h₁
+  case isTrue h₂ =>
+    unfold Area.is_south_of Area.is_north_of Area.can_connect_to.is_succ
+    simp[←h₁]
+    exact h₂
 
 def Area.are_connected (area : Area) (current : Coordinate area.width area.height) (previous : Coordinate area.width area.height) : Prop :=
   area.can_connect_to current previous ∧ area.can_connect_to previous current
@@ -673,5 +848,140 @@ structure Area.PathHead where
   previous : Coordinate area.width area.height
   current_can_connect_to_previous : area.can_connect_to current previous
 
-def Area.nextPathStep (last_step : Area.PathHead) : Option (Area.PathHead) :=
-  sorry
+structure Area.BidirPathHead extends Area.PathHead where
+  previous_can_connect_to_current : area.can_connect_to previous current
+
+private theorem Area.PathHead.current_not_start_not_ground (pathHead : Area.PathHead) : pathHead.area[pathHead.current] ≠ Tile.ground ∧ pathHead.area[pathHead.current] ≠ Tile.start :=
+  have h₁ : pathHead.area[pathHead.current] ≠ Tile.ground := by
+    cases ht : (pathHead.area[pathHead.current] == Tile.ground) <;> simp at ht
+    case false => assumption
+    case true =>
+      cases pathHead.current_can_connect_to_previous <;> simp_all
+  have h₂ : pathHead.area[pathHead.current] ≠ Tile.start := by
+    cases ht : (pathHead.area[pathHead.current] == Tile.start) <;> simp at ht
+    case false => assumption
+    case true =>
+      cases pathHead.current_can_connect_to_previous <;> simp_all
+  And.intro h₁ h₂
+
+section
+variable (last_step : Area.PathHead)
+local infixl:55 "is_west_of" => last_step.area.is_west_of
+local infixl:55 "is_north_of" => last_step.area.is_north_of
+local infixl:55 "is_east_of" => last_step.area.is_east_of
+local infixl:55 "is_south_of" => last_step.area.is_south_of
+
+private def Area.nextPathStep : Option (Area.BidirPathHead) :=
+  let can_connect_to_current := (last_step.area.can_connect_to · last_step.current)
+  let currentTile := last_step.area[last_step.current]
+  have h₀ : last_step.area[last_step.current] = currentTile := rfl
+  have ⟨(_h₁ : currentTile ≠ Tile.ground), (_h₂ : currentTile ≠ Tile.start)⟩ := Area.PathHead.current_not_start_not_ground last_step
+
+  let next : Option $ (next : Coordinate last_step.area.width last_step.area.height) ×' (last_step.area.can_connect_to last_step.current next) := match h₃ : currentTile with
+  | .pipe .NE =>
+    if h₄ : last_step.previous is_north_of last_step.current then
+      last_step.current.goEast.mapWithProof λ next h₅ ↦
+        PSigma.mk next $ Area.can_connect_to.NE h₃ (Or.inr $ Coordinate.go_east_is_east_of _ _ _ h₅)
+    else
+      -- not that those proofs would be needed, but as kind of an assert:
+      have := by cases hc : last_step.current_can_connect_to_previous <;> rw[h₀] at * <;> simp_all; rename_i x; exact x
+      have : last_step.previous is_east_of last_step.current := by simp[h₄] at this; exact this
+      last_step.current.goNorth.mapWithProof λ next h₅ ↦
+        PSigma.mk next $ Area.can_connect_to.NE h₃ (Or.inl $ Coordinate.go_north_is_north_of _ _ _ h₅)
+  | .pipe .ES =>
+    if h₄ : last_step.previous is_east_of last_step.current then
+      last_step.current.goSouth.mapWithProof λ next h₅ ↦
+        PSigma.mk next $ Area.can_connect_to.ES h₃ (Or.inl $ Coordinate.go_south_is_south_of _ _ _ h₅)
+    else
+      have := by cases hc : last_step.current_can_connect_to_previous <;> rw[h₀] at * <;> simp_all; rename_i x; exact x
+      have : last_step.previous is_south_of last_step.current := by simp[h₄] at this; exact this
+      last_step.current.goEast.mapWithProof λ next h₅ ↦
+        PSigma.mk next $ Area.can_connect_to.ES h₃ (Or.inr $ Coordinate.go_east_is_east_of _ _ _ h₅)
+  | .pipe .SW =>
+    if h₄ : last_step.previous is_south_of last_step.current then
+      last_step.current.goWest.mapWithProof λ next h₅ ↦
+        PSigma.mk next $ Area.can_connect_to.SW h₃ (Or.inr $ Coordinate.go_west_is_west_of _ _ _ h₅)
+    else
+      have := by cases hc : last_step.current_can_connect_to_previous <;> rw[h₀] at * <;> simp_all; rename_i x; exact x
+      have : last_step.previous is_west_of last_step.current := by simp[h₄] at this; exact this
+      last_step.current.goSouth.mapWithProof λ next h₅ ↦
+        PSigma.mk next $ Area.can_connect_to.SW h₃ (Or.inl $ Coordinate.go_south_is_south_of _ _ _ h₅)
+  | .pipe .WN =>
+    if h₄ : last_step.previous is_west_of last_step.current then
+      last_step.current.goNorth.mapWithProof λ next h₅ ↦
+        PSigma.mk next $ Area.can_connect_to.WN h₃ (Or.inl $ Coordinate.go_north_is_north_of _ _ _ h₅)
+    else
+      have := by cases hc : last_step.current_can_connect_to_previous <;> rw[h₀] at * <;> simp_all; rename_i x; exact x
+      have : last_step.previous is_north_of last_step.current := by simp[h₄] at this; exact this
+      last_step.current.goWest.mapWithProof λ next h₅ ↦
+        PSigma.mk next $ Area.can_connect_to.WN h₃ (Or.inr $ Coordinate.go_west_is_west_of _ _ _ h₅)
+  | .pipe .NS =>
+    if h₄ : last_step.previous is_north_of last_step.current then
+      last_step.current.goSouth.mapWithProof λ next h₅ ↦
+        PSigma.mk next $ Area.can_connect_to.NS h₃ (Or.inr $ Coordinate.go_south_is_south_of _ _ _ h₅)
+    else
+      have := by cases hc : last_step.current_can_connect_to_previous <;> rw[h₀] at * <;> simp_all; rename_i x; exact x
+      have : last_step.previous is_south_of last_step.current := by simp[h₄] at this; exact this
+      last_step.current.goNorth.mapWithProof λ next h₅ ↦
+        PSigma.mk next $ Area.can_connect_to.NS h₃ (Or.inl $ Coordinate.go_north_is_north_of _ _ _ h₅)
+  | .pipe .WE =>
+    if h₄ : last_step.previous is_west_of last_step.current then
+      last_step.current.goEast.mapWithProof λ next h₅ ↦
+        PSigma.mk next $ Area.can_connect_to.WE h₃ (Or.inr $ Coordinate.go_east_is_east_of _ _ _ h₅)
+    else
+      have := by cases hc : last_step.current_can_connect_to_previous <;> rw[h₀] at * <;> simp_all; rename_i x; exact x
+      have : last_step.previous is_east_of last_step.current := by simp[h₄] at this; exact this
+      last_step.current.goWest.mapWithProof λ next h₅ ↦
+        PSigma.mk next $ Area.can_connect_to.WE h₃ (Or.inl $ Coordinate.go_west_is_west_of _ _ _ h₅)
+
+  next.bind λ (PSigma.mk next h₇) ↦
+    if h₆ : can_connect_to_current next then
+      some {
+        area := last_step.area
+        current := next
+        previous := last_step.current
+        current_can_connect_to_previous := h₆
+        previous_can_connect_to_current := h₇
+      }
+    else
+      none
+end
+
+def part1 (area : Area) : Option Nat := do
+  let starts : List (Area.PathHead) :=
+    [area.start.goNorth, area.start.goEast, area.start.goSouth, area.start.goWest]
+    |> .filterMap λ c ↦ c.bind λc ↦
+      if h: area.can_connect_to c area.start then
+        some {
+          area := area
+          current := c
+          previous := area.start
+          current_can_connect_to_previous := h
+        }
+      else
+        none
+
+  let result : Option Nat := none
+  let mut steps := 1
+  while steps * 2 ≤ area.width * area.height do --check is actually redundant, but I'm too lazy to prove
+
+    sorry
+  result
+where
+  pathsMet := λ (ps : List Area.PathHead) ↦ match ps with
+  | [] => false
+  | p :: ps => ps.any λh ↦ sorry --h.current = p.current
+
+------------------------------------------------------------------------------------------------------------
+
+section Test
+
+def testData : String := "7-F7-
+.FJ|7
+SJLL7
+|F--J
+LJ.LJ"
+
+#eval (Area.parse testData)
+
+end Test
