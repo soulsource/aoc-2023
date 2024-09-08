@@ -1,4 +1,5 @@
 import «Common»
+import «BinaryHeap»
 
 namespace Day10
 
@@ -946,18 +947,21 @@ private def Area.nextPathStep (last_step: Area.PathHead area) : Option (Area.Bid
       none
 end
 
+private def Area.pathStarts (area : Area) : List (Area.PathHead area) :=
+  [area.start.goNorth, area.start.goEast, area.start.goSouth, area.start.goWest]
+  |> .filterMap λ c ↦ c.bind λc ↦
+    if h: area.can_connect_to c area.start then
+      some {
+        current := c
+        previous := area.start
+        current_can_connect_to_previous := h
+      }
+    else
+      none
+
+
 def part1 (area : Area) : Option Nat := do
-  let mut paths : List (Area.PathHead area) :=
-    [area.start.goNorth, area.start.goEast, area.start.goSouth, area.start.goWest]
-    |> .filterMap λ c ↦ c.bind λc ↦
-      if h: area.can_connect_to c area.start then
-        some {
-          current := c
-          previous := area.start
-          current_can_connect_to_previous := h
-        }
-      else
-        none
+  let mut paths : List (Area.PathHead area) := area.pathStarts
 
   let mut steps := 1
   -- The condition in the while-loop is not needed. The program always terminates, as the
@@ -984,6 +988,29 @@ where
   | [] => true
   | _ :: [] => true
   | _ => false
+
+------------------------------------------------------------------------------------------------------------
+
+private def coordinateSorter (a b : Coordinate w h) : Bool :=
+  a.y < b.y ∨ (a.y = b.y ∧ a.x ≤ b.x)
+
+private theorem coordiateSorter_transitive {w h : Nat} : BinaryHeap.transitive_le (coordinateSorter (w := w) (h := h)) := by
+  unfold BinaryHeap.transitive_le
+  intros a b c
+  unfold coordinateSorter
+  simp
+  omega
+
+private theorem coordinateSorter_total {w h : Nat} : BinaryHeap.total_le (coordinateSorter (w := w) (h := h)) := by
+  unfold BinaryHeap.total_le
+  intros a b
+  unfold coordinateSorter
+  simp
+  omega
+
+def part2 (area : Area) : Option Nat :=
+  sorry
+
 
 ------------------------------------------------------------------------------------------------------------
 open DayPart
