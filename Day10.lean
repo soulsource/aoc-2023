@@ -959,6 +959,14 @@ private def Area.pathStarts (area : Area) : List (Area.PathHead area) :=
     else
       none
 
+private def pathsMet {area : Area} : (List $ Area.PathHead area) → Bool
+| [] => false
+| p :: ps => ps.any (·.current = p.current) || pathsMet ps
+
+private def noSolution {area : Area} : (List $ Area.PathHead area) → Bool
+| [] => true
+| _ :: [] => true
+| _ => false
 
 def part1 (area : Area) : Option Nat := do
   let mut paths : List (Area.PathHead area) := area.pathStarts
@@ -981,9 +989,6 @@ def part1 (area : Area) : Option Nat := do
     paths := paths.filterMap (Functor.map Area.BidirPathHead.toPathHead ∘ area.nextPathStep)
   none
 where
-  pathsMet := λ (ps : List $ Area.PathHead area) ↦ match ps with
-  | [] => false
-  | p :: ps => ps.any λh ↦ h.current = p.current || pathsMet ps
   noSolution := λ (ps : List $ Area.PathHead area) ↦ match ps with
   | [] => true
   | _ :: [] => true
@@ -994,22 +999,65 @@ where
 private def coordinateSorter (a b : Coordinate w h) : Bool :=
   a.y < b.y ∨ (a.y = b.y ∧ a.x ≤ b.x)
 
-private theorem coordiateSorter_transitive {w h : Nat} : BinaryHeap.transitive_le (coordinateSorter (w := w) (h := h)) := by
+private theorem coordinateSorter_transitive (w h : Nat) : BinaryHeap.transitive_le (coordinateSorter (w := w) (h := h)) := by
   unfold BinaryHeap.transitive_le
   intros a b c
   unfold coordinateSorter
   simp
   omega
 
-private theorem coordinateSorter_total {w h : Nat} : BinaryHeap.total_le (coordinateSorter (w := w) (h := h)) := by
+private theorem coordinateSorter_total (w h : Nat) : BinaryHeap.total_le (coordinateSorter (w := w) (h := h)) := by
   unfold BinaryHeap.total_le
   intros a b
   unfold coordinateSorter
   simp
   omega
 
-def part2 (area : Area) : Option Nat :=
+private structure Heap (α : Type) (le : α → α → Bool) where
+  size : Nat
+  binaryHeap : BinaryHeap α le size
+
+private def Heap.ofBinaryHeap (heap : BinaryHeap α le n) : Heap α le := {size := n, binaryHeap := heap}
+
+private def Heap.push (h : Heap α le) (v : α) : Heap α le := { size := h.size + 1, binaryHeap := h.binaryHeap.push v }
+
+private def Heap.pop (h : Heap α le) (h₁ : h.size > 0) : (Heap α le × α) :=
+  match h₂ : h.size, h.binaryHeap with
+  | 0, _ => absurd h₂ (Nat.not_eq_zero_of_lt h₁)
+  | (n+1), heap =>
+    let (a, r) := heap.pop
+    ({size := n, binaryHeap := a}, r)
+
+def part2 (area : Area) : Option (NonEmptyList Nat) := do
+  let mut paths : List (List (Coordinate area.width area.height) × Area.PathHead area) :=
+    area.pathStarts.map ([], ·) -- we start with an empty list instead of [area.start] to avoid duplicating it
+  let mut steps := 1
+  while steps * 2 ≤ area.width * area.height do
+    let heads := Prod.snd <$> paths
+    if noSolution heads then
+      throw ()
+    if pathsMet heads then
+      break
+    steps := steps + 1
+    paths := paths.filterMap λ (p, h) ↦ (λx ↦ (x.current :: p, x.toPathHead)) <$> area.nextPathStep h
+  let sortedTilesPerLoop := (closedLoops paths).map λ((a,_), (b,_)) ↦
+    let h := Heap.ofBinaryHeap $ BinaryHeap.new (Coordinate area.width area.height) (coordinateSorter_transitive area.width area.height) (coordinateSorter_total area.width area.height)
+    b.foldl Heap.push $ a.foldl Heap.push (h.push area.start)
+
   sorry
+
+
+where closedLoops := λ (ps : List (List (Coordinate area.width area.height) × Area.PathHead area)) ↦ match ps with
+| [] => []
+| p :: ps =>
+  let rec get_same_pos : List (List (Coordinate area.width area.height) × area.PathHead) → Option (List (Coordinate area.width area.height) × area.PathHead) := λ
+  | [] => none
+  | x :: xs => if x.snd.current = p.snd.current then some x else get_same_pos xs
+  let r := (p, ·) <$> get_same_pos ps
+  if h : r.isSome then
+    r.get h :: closedLoops ps
+  else
+    closedLoops ps
 
 
 ------------------------------------------------------------------------------------------------------------
