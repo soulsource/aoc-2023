@@ -1013,6 +1013,19 @@ private theorem coordinateSorter_total (w h : Nat) : BinaryHeap.total_le (coordi
   simp
   omega
 
+private structure PipeAtCoordinate (area : Area) where
+  coordinate : Coordinate (area.width) (area.height)
+  pipe : Pipe
+
+private def PipeAtCoordinate.sortByCoordinate (a b : PipeAtCoordinate area) : Bool :=
+  coordinateSorter a.coordinate b.coordinate
+
+private theorem PipeAtCoordinate.sortByCoordinate_trans (area : Area) : BinaryHeap.transitive_le (PipeAtCoordinate.sortByCoordinate (area := area)) :=
+  λ a b c ↦ coordinateSorter_transitive area.width area.height a.coordinate b.coordinate c.coordinate
+
+private theorem PipeAtCoordinate.sortByCoordinate_total (area : Area) : BinaryHeap.total_le (PipeAtCoordinate.sortByCoordinate (area := area)) :=
+  λ a b ↦ coordinateSorter_total area.width area.height a.coordinate b.coordinate
+
 private structure Heap (α : Type) (le : α → α → Bool) where
   size : Nat
   binaryHeap : BinaryHeap α le size
@@ -1028,9 +1041,32 @@ private def Heap.pop (h : Heap α le) (h₁ : h.size > 0) : (Heap α le × α) :
     let (a, r) := heap.pop
     ({size := n, binaryHeap := a}, r)
 
+private structure Area.Path (area : Area) where
+  path : List (PipeAtCoordinate area)
+  head : Area.PathHead area
+  tail : Area.PathHead area
+  htail : tail.previous = area.start
+
+private theorem Area.pathStarts_start_at_start (area : Area) : ∀ h ∈ area.pathStarts, h.previous = area.start := by
+  intro h h₁
+  unfold Area.pathStarts List.filterMap Option.bind at h₁
+  split at h₁ <;> simp at h₁
+  case' h_2 b h₂ =>
+    cases h₁
+    split at h₂ ; contradiction
+    simp at h₂
+    cases h₂
+    subst h
+    subst b
+    rfl
+  case h_1 | h_2 h₁ =>
+    sorry
+
+
+
 def part2 (area : Area) : Option (NonEmptyList Nat) := do
-  let mut paths : List (List (Coordinate area.width area.height) × Area.PathHead area) :=
-    area.pathStarts.map ([], ·) -- we start with an empty list instead of [area.start] to avoid duplicating it
+  let mut paths : List (List (PipeAtCoordinate area) × Area.PathHead area) :=
+    area.pathStarts.map λ x ↦ ([{coordinate := x.current, pipe := pipeAt x}], x)
   let mut steps := 1
   while steps * 2 ≤ area.width * area.height do
     let heads := Prod.snd <$> paths
@@ -1039,26 +1075,34 @@ def part2 (area : Area) : Option (NonEmptyList Nat) := do
     if pathsMet heads then
       break
     steps := steps + 1
-    paths := paths.filterMap λ (p, h) ↦ (λx ↦ (x.current :: p, x.toPathHead)) <$> area.nextPathStep h
+    paths := paths.filterMap λ (p, h) ↦ (λx ↦ ({coordinate := x.current, pipe := pipeAt x.toPathHead} :: p, x.toPathHead)) <$> area.nextPathStep h
   let sortedTilesPerLoop := (closedLoops paths).map λ((a,_), (b,_)) ↦
-    let h := Heap.ofBinaryHeap $ BinaryHeap.new (Coordinate area.width area.height) (coordinateSorter_transitive area.width area.height) (coordinateSorter_total area.width area.height)
-    b.foldl Heap.push $ a.foldl Heap.push (h.push area.start)
+    let h := Heap.ofBinaryHeap $ BinaryHeap.new (PipeAtCoordinate area) (PipeAtCoordinate.sortByCoordinate_trans area) (PipeAtCoordinate.sortByCoordinate_total area)
+
+    --b.foldl Heap.push $ a.foldl Heap.push (h.push area.start)
+    h
 
   sorry
 
 
-where closedLoops := λ (ps : List (List (Coordinate area.width area.height) × Area.PathHead area)) ↦ match ps with
-| [] => []
-| p :: ps =>
-  let rec get_same_pos : List (List (Coordinate area.width area.height) × area.PathHead) → Option (List (Coordinate area.width area.height) × area.PathHead) := λ
-  | [] => none
-  | x :: xs => if x.snd.current = p.snd.current then some x else get_same_pos xs
-  let r := (p, ·) <$> get_same_pos ps
-  if h : r.isSome then
-    r.get h :: closedLoops ps
-  else
-    closedLoops ps
-
+where
+  closedLoops := λ (ps : List (List (PipeAtCoordinate area) × Area.PathHead area)) ↦ match ps with
+  | [] => []
+  | p :: ps =>
+    let rec get_same_pos : List (List (PipeAtCoordinate area) × area.PathHead) → Option (List (PipeAtCoordinate area) × area.PathHead) := λ
+    | [] => none
+    | x :: xs => if x.snd.current = p.snd.current then some x else get_same_pos xs
+    let r := (p, ·) <$> get_same_pos ps
+    if h : r.isSome then
+      r.get h :: closedLoops ps
+    else
+      closedLoops ps
+  pipeAt := λ (h : Area.PathHead area) ↦
+    have ⟨h₁, h₂⟩ := Area.PathHead.current_not_start_not_ground h
+    match h₃ : area[h.current] with
+    | .ground => by contradiction
+    | .start => by contradiction
+    | .pipe p => p
 
 ------------------------------------------------------------------------------------------------------------
 open DayPart
