@@ -945,19 +945,32 @@ private def Area.nextPathStep (last_step: Area.PathHead area) : Option (Area.Bid
       }
     else
       none
-end
 
-private def Area.pathStarts (area : Area) : List (Area.PathHead area) :=
-  [area.start.goNorth, area.start.goEast, area.start.goSouth, area.start.goWest]
-  |> .filterMap λ c ↦ c.bind λc ↦
-    if h: area.can_connect_to c area.start then
-      some {
-        current := c
-        previous := area.start
-        current_can_connect_to_previous := h
-      }
-    else
-      none
+private structure Area.PathStarts where
+  north : Option (Σ'(h: PathHead area), h.previous = area.start ×' h.current is_north_of area.start)
+  east : Option (Σ'(h: PathHead area), h.previous = area.start ×' h.current is_east_of area.start)
+  south : Option (Σ'(h: PathHead area), h.previous = area.start ×' h.current is_south_of area.start)
+  west : Option (Σ'(h: PathHead area), h.previous = area.start ×' h.current is_west_of area.start)
+
+private def Area.pathStarts : Area.PathStarts area :=
+  let toStart : {p : Coordinate area.width area.height → Prop} → (c : Option $ Coordinate area.width area.height) → (h₁ : ∀o, c = some o → (p o)) → Option (Σ' (h:area.PathHead),(h.previous = area.start ×' p h.current))  := λc h₁↦
+    c.bindWithProof λ o hc =>
+      if h₂ : area.can_connect_to o area.start then
+        let ph : PathHead area := {current := o, previous := area.start, current_can_connect_to_previous := h₂}
+        let h₃ : ph.previous = area.start := rfl
+        some $ ⟨ph, (PProd.mk h₃ $ h₁ ph.current hc)⟩
+      else
+        none
+  {
+    north := toStart (area.start.goNorth) (Coordinate.go_north_is_north_of area area.start)
+    east := toStart (area.start.goEast) (Coordinate.go_east_is_east_of area area.start)
+    south := toStart (area.start.goSouth) (Coordinate.go_south_is_south_of area area.start)
+    west := toStart (area.start.goWest) (Coordinate.go_west_is_west_of area area.start)
+  }
+
+private def Area.pathStartsList : List (Area.PathHead area) :=
+  let starts := area.pathStarts
+  [ PSigma.fst <$> starts.north, PSigma.fst <$> starts.east, PSigma.fst <$> starts.south, PSigma.fst <$> starts.west].filterMap id
 
 private def pathsMet {area : Area} : (List $ Area.PathHead area) → Bool
 | [] => false
@@ -969,7 +982,7 @@ private def noSolution {area : Area} : (List $ Area.PathHead area) → Bool
 | _ => false
 
 def part1 (area : Area) : Option Nat := do
-  let mut paths : List (Area.PathHead area) := area.pathStarts
+  let mut paths : List (Area.PathHead area) := area.pathStartsList
 
   let mut steps := 1
   -- The condition in the while-loop is not needed. The program always terminates, as the
@@ -995,6 +1008,65 @@ where
   | _ => false
 
 ------------------------------------------------------------------------------------------------------------
+
+private def Area.ConnectedPathPart {area : Area} (path : List $ Coordinate area.width area.height) : Prop := match path with
+| [] => False
+| s :: [] => area.can_connect_to s area.start
+| s :: ss :: sss => area.are_connected s ss ∧ Area.ConnectedPathPart sss
+
+private structure Area.PathsPart where
+  steps : List $ Coordinate area.width area.height
+  connected : Area.ConnectedPathPart steps
+
+private def Area.PathsPart.list_not_empty {area : Area} (pp : area.PathsPart) : pp.steps ≠ [] := match pp.steps, pp.connected with
+| [], hx => hx.elim
+| s :: ss, _ => List.cons_ne_nil s ss
+
+private def Area.PathPart.pathHead {area : Area} : area.PathsPart →  area.PathHead
+| { steps := s :: [], connected} =>
+  {
+    current := s
+    previous := area.start
+    current_can_connect_to_previous := connected
+  }
+| { steps := s :: ss :: _, connected} =>
+  {
+    current := s
+    previous := ss
+    current_can_connect_to_previous := connected.left.left
+  }
+
+private structure Area.Paths where
+  north : Option $ Area.PathsPart area
+  east : Option $ Area.PathsPart area
+  south : Option $ Area.PathsPart area
+  west : Option $ Area.PathsPart area
+  north_valid : ∀n, north = some n → (n.steps.getLast (Area.PathsPart.list_not_empty n)) is_north_of area.start
+  east_valid : ∀e, east = some e → (e.steps.getLast (Area.PathsPart.list_not_empty e)) is_east_of area.start
+  south_valid : ∀s, south = some s → (s.steps.getLast (Area.PathsPart.list_not_empty s)) is_south_of area.start
+  west_valid : ∀w, west = some w → (w.steps.getLast (Area.PathsPart.list_not_empty w)) is_west_of area.start
+
+private def Area.Paths.fromPathStarts {area : Area} (starts : Area.PathStarts area) : Area.Paths area :=
+  let toPathsPart : (h : area.PathHead) → (h.previous = area.start) → area.PathsPart := λh h₁ ↦ { steps := [h.current], connected := h₁.subst h.current_can_connect_to_previous}
+  {
+    north := starts.north.map λ (PSigma.mk c $ PProd.mk h₁ h₂) ↦ toPathsPart c h₁
+    east := starts.east.map λ (PSigma.mk c $ PProd.mk h₁ h₂) ↦ toPathsPart c h₁
+    south := starts.south.map λ (PSigma.mk c $ PProd.mk h₁ h₂) ↦ toPathsPart c h₁
+    west := starts.west.map λ (PSigma.mk c $ PProd.mk h₁ h₂) ↦ toPathsPart c h₁
+    north_valid := λn h₁ ↦ by
+      have h₂ := (starts.north.get (Option.isSome_map.subst $ (Option.isSome_iff_exists.mpr ⟨n,h₁⟩).symm).symm).snd.snd
+      simp[toPathsPart] at h₁
+      cases h₁; rename_i m h₁
+      have h₃ := h₁.right
+      subst n
+      simp
+      simp[h₁.left] at h₂
+      assumption
+    east_valid := sorry
+    south_valid := sorry
+    west_valid := sorry
+  }
+end
 
 private def coordinateSorter (a b : Coordinate w h) : Bool :=
   a.y < b.y ∨ (a.y = b.y ∧ a.x ≤ b.x)
@@ -1041,32 +1113,10 @@ private def Heap.pop (h : Heap α le) (h₁ : h.size > 0) : (Heap α le × α) :
     let (a, r) := heap.pop
     ({size := n, binaryHeap := a}, r)
 
-private structure Area.Path (area : Area) where
-  path : List (PipeAtCoordinate area)
-  head : Area.PathHead area
-  tail : Area.PathHead area
-  htail : tail.previous = area.start
-
-private theorem Area.pathStarts_start_at_start (area : Area) : ∀ h ∈ area.pathStarts, h.previous = area.start := by
-  intro h h₁
-  unfold Area.pathStarts List.filterMap Option.bind at h₁
-  split at h₁ <;> simp at h₁
-  case' h_2 b h₂ =>
-    cases h₁
-    split at h₂ ; contradiction
-    simp at h₂
-    cases h₂
-    subst h
-    subst b
-    rfl
-  case h_1 | h_2 h₁ =>
-    sorry
-
-
 
 def part2 (area : Area) : Option (NonEmptyList Nat) := do
   let mut paths : List (List (PipeAtCoordinate area) × Area.PathHead area) :=
-    area.pathStarts.map λ x ↦ ([{coordinate := x.current, pipe := pipeAt x}], x)
+    area.pathStartsList.map λ x ↦ ([{coordinate := x.current, pipe := pipeAt x}], x)
   let mut steps := 1
   while steps * 2 ≤ area.width * area.height do
     let heads := Prod.snd <$> paths
