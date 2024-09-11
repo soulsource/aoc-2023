@@ -946,6 +946,20 @@ private def Area.nextPathStep (last_step: Area.PathHead area) : Option (Area.Bid
     else
       none
 
+private theorem Area.nextPathStep_previous_current {area : Area} (p: area.PathHead) {n : BidirPathHead area} (h₁ : area.nextPathStep p = some n) : n.previous = p.current := by
+  unfold Area.nextPathStep Option.bind at h₁
+  simp at h₁
+  split at h₁
+  split at h₁
+  case h_1 => contradiction
+  case h_2 =>
+    dsimp only at h₁
+    split at h₁
+    case isFalse => contradiction
+    case isTrue =>
+      simp only [Option.some.injEq] at h₁
+      simp[←h₁]
+
 private structure Area.PathStarts where
   north : Option (Σ'(h: PathHead area), h.previous = area.start ×' h.current is_north_of area.start)
   east : Option (Σ'(h: PathHead area), h.previous = area.start ×' h.current is_east_of area.start)
@@ -1012,7 +1026,7 @@ where
 private def Area.ConnectedPathPart {area : Area} (path : List $ Coordinate area.width area.height) : Prop := match path with
 | [] => False
 | s :: [] => area.can_connect_to s area.start
-| s :: ss :: sss => area.are_connected s ss ∧ Area.ConnectedPathPart sss
+| s :: ss :: sss => area.are_connected s ss ∧ Area.ConnectedPathPart (ss :: sss)
 
 private structure Area.PathsPart where
   steps : List $ Coordinate area.width area.height
@@ -1022,7 +1036,7 @@ private def Area.PathsPart.list_not_empty {area : Area} (pp : area.PathsPart) : 
 | [], hx => hx.elim
 | s :: ss, _ => List.cons_ne_nil s ss
 
-private def Area.PathPart.pathHead {area : Area} : area.PathsPart →  area.PathHead
+private def Area.PathsPart.pathHead {area : Area} : area.PathsPart → area.PathHead
 | { steps := s :: [], connected} =>
   {
     current := s
@@ -1049,23 +1063,100 @@ private structure Area.Paths where
 private def Area.Paths.fromPathStarts {area : Area} (starts : Area.PathStarts area) : Area.Paths area :=
   let toPathsPart : (h : area.PathHead) → (h.previous = area.start) → area.PathsPart := λh h₁ ↦ { steps := [h.current], connected := h₁.subst h.current_can_connect_to_previous}
   {
-    north := starts.north.map λ (PSigma.mk c $ PProd.mk h₁ h₂) ↦ toPathsPart c h₁
-    east := starts.east.map λ (PSigma.mk c $ PProd.mk h₁ h₂) ↦ toPathsPart c h₁
-    south := starts.south.map λ (PSigma.mk c $ PProd.mk h₁ h₂) ↦ toPathsPart c h₁
-    west := starts.west.map λ (PSigma.mk c $ PProd.mk h₁ h₂) ↦ toPathsPart c h₁
+    north := starts.north.map λ ⟨c, ⟨h₁, _⟩⟩ ↦ toPathsPart c h₁
+    east := starts.east.map λ ⟨c, ⟨h₁, _⟩⟩ ↦ toPathsPart c h₁
+    south := starts.south.map λ ⟨c, ⟨h₁, _⟩⟩ ↦ toPathsPart c h₁
+    west := starts.west.map λ ⟨c, ⟨h₁, _⟩⟩ ↦ toPathsPart c h₁
     north_valid := λn h₁ ↦ by
+      have : (starts.north.get (Option.isSome_map.subst $ (Option.isSome_iff_exists.mpr ⟨n,h₁⟩).symm).symm).fst.current = n.steps.getLast n.list_not_empty :=
+        let ⟨w, h₁⟩ := Option.map_eq_some'.mp h₁
+        by simp only [h₁.left, Option.get_some, ←h₁.right, List.getLast_singleton]
       have h₂ := (starts.north.get (Option.isSome_map.subst $ (Option.isSome_iff_exists.mpr ⟨n,h₁⟩).symm).symm).snd.snd
-      simp[toPathsPart] at h₁
-      cases h₁; rename_i m h₁
-      have h₃ := h₁.right
-      subst n
-      simp
-      simp[h₁.left] at h₂
+      simp[this] at h₂
       assumption
+    east_valid := λe h₁ ↦ by
+      have : (starts.east.get (Option.isSome_map.subst $ (Option.isSome_iff_exists.mpr ⟨e,h₁⟩).symm).symm).fst.current = e.steps.getLast e.list_not_empty :=
+        let ⟨w, h₁⟩ := Option.map_eq_some'.mp h₁
+        by simp only [h₁.left, Option.get_some, ←h₁.right, List.getLast_singleton]
+      have h₂ := (starts.east.get (Option.isSome_map.subst $ (Option.isSome_iff_exists.mpr ⟨e,h₁⟩).symm).symm).snd.snd
+      simp[this] at h₂
+      assumption
+    south_valid := λs h₁ ↦ by
+      have : (starts.south.get (Option.isSome_map.subst $ (Option.isSome_iff_exists.mpr ⟨s,h₁⟩).symm).symm).fst.current = s.steps.getLast s.list_not_empty :=
+        let ⟨w, h₁⟩ := Option.map_eq_some'.mp h₁
+        by simp only [h₁.left, Option.get_some, ←h₁.right, List.getLast_singleton]
+      have h₂ := (starts.south.get (Option.isSome_map.subst $ (Option.isSome_iff_exists.mpr ⟨s,h₁⟩).symm).symm).snd.snd
+      simp[this] at h₂
+      assumption
+    west_valid := λw h₁ ↦ by
+      have : (starts.west.get (Option.isSome_map.subst $ (Option.isSome_iff_exists.mpr ⟨w,h₁⟩).symm).symm).fst.current = w.steps.getLast w.list_not_empty :=
+        let ⟨w, h₁⟩ := Option.map_eq_some'.mp h₁
+        by simp only [h₁.left, Option.get_some, ←h₁.right, List.getLast_singleton]
+      have h₂ := (starts.west.get (Option.isSome_map.subst $ (Option.isSome_iff_exists.mpr ⟨w,h₁⟩).symm).symm).snd.snd
+      simp[this] at h₂
+      assumption
+  }
+
+private def Area.Paths.step {area : Area} : (paths : area.Paths) →  area.Paths
+| {north, east, south, west, north_valid, east_valid, south_valid, west_valid} =>
+  let progress : area.PathsPart → Option (Σ' (r : area.PathsPart × area.PathsPart), r.fst.steps.getLast r.fst.list_not_empty = r.snd.steps.getLast r.snd.list_not_empty) := λ pp ↦
+      (area.nextPathStep pp.pathHead).mapWithProof λ ph h₁ ↦
+      have h₂ : ph.previous = pp.pathHead.current := Area.nextPathStep_previous_current pp.pathHead h₁
+      have h₃ : pp.steps.head pp.list_not_empty = pp.pathHead.current :=
+        match pp with
+        | {steps := s :: [], connected} => rfl
+        | {steps := s :: ss, connected} =>
+          match h: { steps := s :: ss, connected := connected : area.PathsPart} with
+          | {steps := s :: [], connected} => rfl
+          | {steps := s :: ss :: _, connected} => rfl
+      ⟨
+        (
+          pp,
+          {
+            steps := ph.current :: pp.steps
+            connected := by
+              have h₄ := ph.current_can_connect_to_previous
+              have h₅ := ph.previous_can_connect_to_current
+              rw[←h₃] at h₂
+              rw[h₂] at h₄ h₅
+              have h₆ := pp.connected
+              unfold Area.ConnectedPathPart
+              split ;
+              case h_1 => contradiction
+              case h_2 hx => simp at hx; exact absurd hx.right pp.list_not_empty
+              case h_3 d1 s ss sss he =>
+                clear d1
+                have h₇ : ss = pp.steps.head pp.list_not_empty := by simp only [List.cons.injEq] at he; simp only [he.right, List.head_cons]
+                have h₈ : s = ph.current := by simp only [List.cons.injEq] at he; simp only [he.left]
+                constructor
+                case left =>
+                  subst s ss
+                  exact ⟨h₄, h₅⟩
+                case right =>
+                  have h₉ : pp.steps = ss::sss := by simp at he; exact he.right
+                  rw[←h₉]
+                  exact h₆
+          }
+        ),
+        by sorry
+      ⟩
+
+  let nn := north >>= progress
+  let ne := east >>= progress
+  let ns := south >>= progress
+  let nw := west >>= progress
+  {
+    north := nn.map (Prod.snd ∘ PSigma.fst)
+    east := ne.map (Prod.snd ∘ PSigma.fst)
+    south := ns.map (Prod.snd ∘ PSigma.fst)
+    west := nw.map (Prod.snd ∘ PSigma.fst)
+    north_valid := sorry
     east_valid := sorry
     south_valid := sorry
     west_valid := sorry
   }
+
+
 end
 
 private def coordinateSorter (a b : Coordinate w h) : Bool :=
