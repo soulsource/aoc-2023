@@ -1176,6 +1176,57 @@ private def Area.Paths.step : (paths : area.Paths) →  area.Paths
 where
   extractProof : {a : Type} → {b : a → Prop} → (Option (PSigma b)) → ((h: Option a) ×' ∀aa, h = some aa → b aa) :=
   λ i ↦ ⟨match i with | .none => none | .some v => some v.fst, by cases i <;> simp; case some b => exact b.snd⟩
+
+inductive OneOrTwoSolutions (α : Type)
+| one : α → OneOrTwoSolutions α
+| two : α → α → OneOrTwoSolutions α
+
+instance : Functor OneOrTwoSolutions where
+  map := λ f s ↦ match s with
+  | .one l => .one $ f l
+  | .two l r => .two (f l) (f r)
+
+private abbrev Area.Paths.Solutions := OneOrTwoSolutions Pipe
+
+-- Returns the tile at the start position that would currently yield a solution.
+-- Since there can be two closed loops of the same length, it can also return up to two solutions.
+-- example for two solutions:
+--
+--  F7.
+--  LS7
+--  .LJ
+private def Area.Paths.solutions? {area : Area} (paths : area.Paths) : Option Area.Paths.Solutions :=
+  let solution := λ (a b : Option area.PathsPart) ↦ Option.isSome $ (Option.zip a b).filter (λ (l, r) ↦ l.steps.head l.list_not_empty = r.steps.head r.list_not_empty)
+  if solution paths.north paths.east then
+    if solution paths.south paths.west then
+      some $ OneOrTwoSolutions.two Pipe.NE Pipe.SW
+    else
+      some $ OneOrTwoSolutions.one Pipe.NE
+  else if solution paths.north paths.south then
+    some $ OneOrTwoSolutions.one Pipe.NS -- no point in checking WE - paths cannot cross.
+  else if solution paths.north paths.west then
+    if solution paths.east paths.south then
+      some $ OneOrTwoSolutions.two Pipe.WN Pipe.ES
+    else
+      some $ OneOrTwoSolutions.one Pipe.WN
+  else if solution paths.east paths.south then
+    some $ OneOrTwoSolutions.one Pipe.ES -- no point in checking WN again, has been checked already
+  else if solution paths.east paths.west then
+    some $ OneOrTwoSolutions.one Pipe.WE -- no point in checking NS - paths cannot cross.
+  else if solution paths.south paths.west then
+    some $ OneOrTwoSolutions.one Pipe.SW -- same, no need to check NE
+  else
+    none
+
+private def Area.Paths.unsolvable {area : Area} (paths : area.Paths) : Bool :=
+  let count := λ (o : Option area.PathsPart) (i : Nat) ↦ if o.isSome then i + 1 else i
+  let c := 0
+    |> count paths.north
+    |> count paths.east
+    |> count paths.south
+    |> count paths.west
+  c < 2
+
 end
 
 private def coordinateSorter (a b : Coordinate w h) : Bool :=
@@ -1223,40 +1274,33 @@ private def Heap.pop (h : Heap α le) (h₁ : h.size > 0) : (Heap α le × α) :
     let (a, r) := heap.pop
     ({size := n, binaryHeap := a}, r)
 
-
-def part2 (area : Area) : Option (NonEmptyList Nat) := do
-  let mut paths : List (List (PipeAtCoordinate area) × Area.PathHead area) :=
-    area.pathStartsList.map λ x ↦ ([{coordinate := x.current, pipe := pipeAt x}], x)
+def part2 (area : Area) : Option (OneOrTwoSolutions Nat) := do
+  let mut paths := Area.Paths.fromPathStarts area.pathStarts
   let mut steps := 1
-  while steps * 2 ≤ area.width * area.height do
-    let heads := Prod.snd <$> paths
-    if noSolution heads then
+  let mut solution := none
+  while steps * 2 ≤ area.width * area.height do --again, pointless check, but convinces Lean that this terminates.
+    if paths.unsolvable then
       throw ()
-    if pathsMet heads then
+    solution := paths.solutions?
+    if (solution.isSome) then
       break
     steps := steps + 1
-    paths := paths.filterMap λ (p, h) ↦ (λx ↦ ({coordinate := x.current, pipe := pipeAt x.toPathHead} :: p, x.toPathHead)) <$> area.nextPathStep h
-  let sortedTilesPerLoop := (closedLoops paths).map λ((a,_), (b,_)) ↦
-    let h := Heap.ofBinaryHeap $ BinaryHeap.new (PipeAtCoordinate area) (PipeAtCoordinate.sortByCoordinate_trans area) (PipeAtCoordinate.sortByCoordinate_total area)
+    paths := paths.step
 
-    --b.foldl Heap.push $ a.foldl Heap.push (h.push area.start)
-    h
+  solution
+    <&> sorry
+
+
+  --let sortedTilesPerLoop := (closedLoops paths).map λ((a,_), (b,_)) ↦
+  --  let h := Heap.ofBinaryHeap $ BinaryHeap.new (PipeAtCoordinate area) (PipeAtCoordinate.sortByCoordinate_trans area) (PipeAtCoordinate.sortByCoordinate_total area)
+--
+  --  --b.foldl Heap.push $ a.foldl Heap.push (h.push area.start)
+  --  h
 
   sorry
 
 
 where
-  closedLoops := λ (ps : List (List (PipeAtCoordinate area) × Area.PathHead area)) ↦ match ps with
-  | [] => []
-  | p :: ps =>
-    let rec get_same_pos : List (List (PipeAtCoordinate area) × area.PathHead) → Option (List (PipeAtCoordinate area) × area.PathHead) := λ
-    | [] => none
-    | x :: xs => if x.snd.current = p.snd.current then some x else get_same_pos xs
-    let r := (p, ·) <$> get_same_pos ps
-    if h : r.isSome then
-      r.get h :: closedLoops ps
-    else
-      closedLoops ps
   pipeAt := λ (h : Area.PathHead area) ↦
     have ⟨h₁, h₂⟩ := Area.PathHead.current_not_start_not_ground h
     match h₃ : area[h.current] with
