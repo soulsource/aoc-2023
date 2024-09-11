@@ -1097,9 +1097,10 @@ private def Area.Paths.fromPathStarts {area : Area} (starts : Area.PathStarts ar
       assumption
   }
 
-private def Area.Paths.step {area : Area} : (paths : area.Paths) →  area.Paths
+private def Area.Paths.step : (paths : area.Paths) →  area.Paths
 | {north, east, south, west, north_valid, east_valid, south_valid, west_valid} =>
-  let progress : area.PathsPart → Option (Σ' (r : area.PathsPart × area.PathsPart), r.fst.steps.getLast r.fst.list_not_empty = r.snd.steps.getLast r.snd.list_not_empty) := λ pp ↦
+  -- This lambda is so fugly, because I couldn't prove the equality of the list ends outside of it...
+  let progress : {p : area.PathsPart → Prop} → (i : area.PathsPart) → (∀(j:area.PathsPart), j.steps.getLast j.list_not_empty = i.steps.getLast i.list_not_empty → (p j)) → Option (Σ' (r : area.PathsPart), p r) := λ pp h₀ ↦
       (area.nextPathStep pp.pathHead).mapWithProof λ ph h₁ ↦
       have h₂ : ph.previous = pp.pathHead.current := Area.nextPathStep_previous_current pp.pathHead h₁
       have h₃ : pp.steps.head pp.list_not_empty = pp.pathHead.current :=
@@ -1109,54 +1110,72 @@ private def Area.Paths.step {area : Area} : (paths : area.Paths) →  area.Paths
           match h: { steps := s :: ss, connected := connected : area.PathsPart} with
           | {steps := s :: [], connected} => rfl
           | {steps := s :: ss :: _, connected} => rfl
-      ⟨
-        (
-          pp,
-          {
-            steps := ph.current :: pp.steps
-            connected := by
-              have h₄ := ph.current_can_connect_to_previous
-              have h₅ := ph.previous_can_connect_to_current
-              rw[←h₃] at h₂
-              rw[h₂] at h₄ h₅
-              have h₆ := pp.connected
-              unfold Area.ConnectedPathPart
-              split ;
-              case h_1 => contradiction
-              case h_2 hx => simp at hx; exact absurd hx.right pp.list_not_empty
-              case h_3 d1 s ss sss he =>
-                clear d1
-                have h₇ : ss = pp.steps.head pp.list_not_empty := by simp only [List.cons.injEq] at he; simp only [he.right, List.head_cons]
-                have h₈ : s = ph.current := by simp only [List.cons.injEq] at he; simp only [he.left]
-                constructor
-                case left =>
-                  subst s ss
-                  exact ⟨h₄, h₅⟩
-                case right =>
-                  have h₉ : pp.steps = ss::sss := by simp at he; exact he.right
-                  rw[←h₉]
-                  exact h₆
-          }
-        ),
-        by sorry
-      ⟩
+      let r : area.PathsPart := {
+        steps := ph.current :: pp.steps
+        connected := by
+          have h₄ := ph.current_can_connect_to_previous
+          have h₅ := ph.previous_can_connect_to_current
+          rw[←h₃] at h₂
+          rw[h₂] at h₄ h₅
+          have h₆ := pp.connected
+          unfold Area.ConnectedPathPart
+          split ;
+          case h_1 => contradiction
+          case h_2 hx => simp at hx; exact absurd hx.right pp.list_not_empty
+          case h_3 d1 s ss sss he =>
+            clear d1
+            have h₇ : ss = pp.steps.head pp.list_not_empty := by simp only [List.cons.injEq] at he; simp only [he.right, List.head_cons]
+            have h₈ : s = ph.current := by simp only [List.cons.injEq] at he; simp only [he.left]
+            constructor
+            case left =>
+              subst s ss
+              exact ⟨h₄, h₅⟩
+            case right =>
+              have h₉ : pp.steps = ss::sss := by simp at he; exact he.right
+              rw[←h₉]
+              exact h₆
+      }
+      have : r.steps.getLast r.list_not_empty = pp.steps.getLast pp.list_not_empty :=
+        match hr : r.steps, r.list_not_empty with
+        | r₁ :: r₁s , _=> (And.right $ List.cons.inj hr.symm)▸(List.getLast_cons (a:=r₁) pp.list_not_empty)
+      ⟨r, h₀ r this⟩
 
-  let nn := north >>= progress
-  let ne := east >>= progress
-  let ns := south >>= progress
-  let nw := west >>= progress
+  -- Of course one could factor out the predicate and make this a function too, but it's a two-liner. Without explicit types a one-liner...
+  let northPred : (area.PathsPart → Prop) := λ i ↦ i.steps.getLast i.list_not_empty is_north_of area.start
+  have hn : (j:area.PathsPart) → (h₁ : northPred j) → ∀(i:area.PathsPart), (he : i.steps.getLast i.list_not_empty = j.steps.getLast j.list_not_empty) → northPred i :=
+    λ j h₁ ↦ λ i he ↦ he.substr (p := λx ↦ x is_north_of area.start) h₁
+
+  let eastPred : (area.PathsPart → Prop) := λ i ↦ i.steps.getLast i.list_not_empty is_east_of area.start
+  have he : (j:area.PathsPart) → (h₁ : eastPred j) → ∀(i:area.PathsPart), (he : i.steps.getLast i.list_not_empty = j.steps.getLast j.list_not_empty) → eastPred i :=
+    λ j h₁ ↦ λ i he ↦ he.substr (p := λx ↦ x is_east_of area.start) h₁
+
+  let southPred : (area.PathsPart → Prop) := λ i ↦ i.steps.getLast i.list_not_empty is_south_of area.start
+  have hs : (j:area.PathsPart) → (h₁ : southPred j) → ∀(i:area.PathsPart), (he : i.steps.getLast i.list_not_empty = j.steps.getLast j.list_not_empty) → southPred i :=
+    λ j h₁ ↦ λ i he ↦ he.substr (p := λx ↦ x is_south_of area.start) h₁
+
+  let westPred : (area.PathsPart → Prop) := λ i ↦ i.steps.getLast i.list_not_empty is_west_of area.start
+  have hw : (j:area.PathsPart) → (h₁ : westPred j) → ∀(i:area.PathsPart), (he : i.steps.getLast i.list_not_empty = j.steps.getLast j.list_not_empty) → westPred i :=
+    λ j h₁ ↦ λ i he ↦ he.substr (p := λx ↦ x is_west_of area.start) h₁
+
+
+  let nn := extractProof $ north.bindWithProof λ x h ↦ progress x (hn x $ north_valid x h)
+  let ne := extractProof $ east.bindWithProof λ x h ↦ progress x (he x $ east_valid x h)
+  let ns := extractProof $ south.bindWithProof λ x h ↦ progress x (hs x $ south_valid x h)
+  let nw := extractProof $ west.bindWithProof λ x h ↦ progress x (hw x $ west_valid x h)
+
   {
-    north := nn.map (Prod.snd ∘ PSigma.fst)
-    east := ne.map (Prod.snd ∘ PSigma.fst)
-    south := ns.map (Prod.snd ∘ PSigma.fst)
-    west := nw.map (Prod.snd ∘ PSigma.fst)
-    north_valid := sorry
-    east_valid := sorry
-    south_valid := sorry
-    west_valid := sorry
+    north := nn.fst
+    east := ne.fst
+    south := ns.fst
+    west := nw.fst
+    north_valid := nn.snd
+    east_valid := ne.snd
+    south_valid := ns.snd
+    west_valid := nw.snd
   }
-
-
+where
+  extractProof : {a : Type} → {b : a → Prop} → (Option (PSigma b)) → ((h: Option a) ×' ∀aa, h = some aa → b aa) :=
+  λ i ↦ ⟨match i with | .none => none | .some v => some v.fst, by cases i <;> simp; case some b => exact b.snd⟩
 end
 
 private def coordinateSorter (a b : Coordinate w h) : Bool :=
