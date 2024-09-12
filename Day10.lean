@@ -1107,7 +1107,7 @@ private def Area.Paths.step : (paths : area.Paths) →  area.Paths
         match pp with
         | {steps := s :: [], connected} => rfl
         | {steps := s :: ss, connected} =>
-          match h: { steps := s :: ss, connected := connected : area.PathsPart} with
+          match { steps := s :: ss, connected := connected : area.PathsPart} with
           | {steps := s :: [], connected} => rfl
           | {steps := s :: ss :: _, connected} => rfl
       let r : area.PathsPart := {
@@ -1185,6 +1185,93 @@ instance : Functor OneOrTwoSolutions where
   map := λ f s ↦ match s with
   | .one l => .one $ f l
   | .two l r => .two (f l) (f r)
+
+private structure Area.ClosedPath extends area.PathsPart where
+  closed : area.can_connect_to (steps.head (toPathsPart.list_not_empty)) area.start
+  start : Pipe
+  start_valid : match start with
+  | .NE => toPathsPart.steps.getLast (toPathsPart.list_not_empty) is_north_of area.start ∧ toPathsPart.steps.head (toPathsPart.list_not_empty) is_east_of area.start
+  | .ES => toPathsPart.steps.getLast (toPathsPart.list_not_empty) is_east_of area.start ∧ toPathsPart.steps.head (toPathsPart.list_not_empty) is_south_of area.start
+  | .SW => toPathsPart.steps.getLast (toPathsPart.list_not_empty) is_south_of area.start ∧ toPathsPart.steps.head (toPathsPart.list_not_empty) is_west_of area.start
+  | .WN => toPathsPart.steps.getLast (toPathsPart.list_not_empty) is_west_of area.start ∧ toPathsPart.steps.head (toPathsPart.list_not_empty) is_north_of area.start
+  | .NS => toPathsPart.steps.getLast (toPathsPart.list_not_empty) is_north_of area.start ∧ toPathsPart.steps.head (toPathsPart.list_not_empty) is_south_of area.start
+  | .WE => toPathsPart.steps.getLast (toPathsPart.list_not_empty) is_west_of area.start ∧ toPathsPart.steps.head (toPathsPart.list_not_empty) is_east_of area.start
+
+private def Area.PathsPart.join (a b : area.PathsPart) (h₁ : area.are_connected (a.steps.head a.list_not_empty) (b.steps.head b.list_not_empty)) : area.PathsPart :=
+  --Proofs in this function would get much simpler if the pattern match contained h₁.
+  --But then the proof below (Area.PathsPart.join_b_last_head) gets really hard...
+  match hb : b.steps, ha : a.steps, a.list_not_empty, b.list_not_empty, a.connected, b.connected with
+  | bh :: [], ah :: as, _, _, h₂, _ =>
+    {
+      steps := bh :: ah :: as
+      connected := by
+        simp[Area.ConnectedPathPart, h₂] at h₁ ⊢
+        simp[ha, hb] at h₁
+        exact h₁.symm
+    }
+  | bh :: b1 :: bs, ah :: as, _, _, h₂, h₃=>
+    let c : area.PathsPart := {
+      steps := bh :: ah :: as
+      connected := ⟨by simp[ha, hb] at h₁; exact h₁.symm, h₂⟩
+    }
+    let d : area.PathsPart := {
+      steps := b1 :: bs
+      connected := h₃.right
+    }
+    have : bs.length + 1 < b.steps.length := by simp only [hb, List.length_cons, Nat.lt_add_one]
+    Area.PathsPart.join c d h₃.left
+termination_by b.steps.length
+
+--private def Area.PathsPart.join (a b : area.PathsPart) (h₁ : area.are_connected (a.steps.head a.list_not_empty) (b.steps.head b.list_not_empty)) : area.PathsPart :=
+--  match hb : b.steps, a.steps, a.list_not_empty, b.list_not_empty, h₁, a.connected, b.connected with
+--  | bh :: [], ah :: as, _, _, h₁, h₂, _ =>
+--    {
+--      steps := bh :: ah :: as
+--      connected := by
+--        simp[Area.ConnectedPathPart, h₂] at h₁ ⊢
+--        exact h₁.symm
+--    }
+--  | bh :: b1 :: bs, ah :: as, _, _, h₁, h₂, h₃=>
+--    let c : area.PathsPart := {
+--      steps := bh :: ah :: as
+--      connected := ⟨h₁.symm, h₂⟩
+--    }
+--    let d : area.PathsPart := {
+--      steps := b1 :: bs
+--      connected := h₃.right
+--    }
+--    have : bs.length + 1 < b.steps.length := by simp only [hb, List.length_cons, Nat.lt_add_one]
+--    Area.PathsPart.join c d h₃.left
+--termination_by b.steps.length
+
+private theorem Area.PathsPart.join_b_last_head (a b : area.PathsPart) (h₁ : area.are_connected (a.steps.head a.list_not_empty) (b.steps.head b.list_not_empty)) : (Area.PathsPart.join area a b h₁).steps.head (Area.PathsPart.join area a b h₁).list_not_empty = b.steps.getLast b.list_not_empty := by
+  generalize h₂ : (Day10.Area.PathsPart.join area a b h₁) = o
+  unfold Area.PathsPart.join at h₂
+  split at h₂
+  case h_1 bh ah as _ _ h₄ h₃ _ _ _ _ hb ha _ _ _ _ =>
+    simp[hb, ←h₂]
+  case h_2 bh b1 bs ah as _ _ h₄ h₃ d4 d3 d2 d1 hb ha d5 d6 d7 d8 =>
+    clear d1 d2 d3 d4 d5 d6 d7 d8
+    simp only at h₂
+    simp[hb]
+    have : ∀ g₁ g₂, (bh :: b1 ::bs).getLast g₁ = (b1 :: bs).getLast g₂ := by intros; exact List.getLast_cons (by simp : b1 :: bs ≠ [])
+    rw[this]
+    case g₂ => simp
+    subst o
+    have : bs.length + 1 < b.steps.length := by simp only [hb, List.length_cons, Nat.lt_add_one]
+    apply Area.PathsPart.join_b_last_head
+termination_by b.steps.length
+
+
+private def Area.ClosedPath.fromNE (n : area.PathsPart) (hn : n.steps.getLast n.list_not_empty is_north_of area.start) (e : area.PathsPart) (he : e.steps.getLast e.list_not_empty is_east_of area.start) (h₁ : n.steps.head n.list_not_empty = e.steps.head e.list_not_empty) : area.ClosedPath :=
+  --let joinedPath := match n.steps, n.list_not_empty with
+  --| [n1], _ =>
+  --  match e.steps, e.list_not_empty with
+  --  | e1 :: [], _ => sorry -- can show that n = [n1] → e = [e1 :: e2 :: es] and vice versa.
+  --  | e1 :: e2 :: es, _ => sorry
+  --| n1 :: n2 :: ns, _ =>
+  --  sorry
+  sorry
 
 private abbrev Area.Paths.Solutions := OneOrTwoSolutions Pipe
 
