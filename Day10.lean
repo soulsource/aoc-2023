@@ -721,6 +721,14 @@ private def Area.is_north_of (area : Area) (current other : Coordinate area.widt
 private def Area.is_east_of (area : Area) (current other : Coordinate area.width area.height) : Prop := area.is_west_of other current
 private def Area.is_south_of (area : Area) (current other : Coordinate area.width area.height) : Prop := area.is_north_of other current
 
+private theorem Area.can_connect_to.is_succ.irrefl {n : Nat} {a b : Fin n} : Area.can_connect_to.is_succ a b → Area.can_connect_to.is_succ b a → False := by
+  intros h₁ h₂
+  unfold Area.can_connect_to.is_succ at *
+  split at h₁
+  split at h₂
+  case isTrue.isFalse | isFalse => assumption
+  case isTrue.isTrue => simp[Fin.ext_iff] at h₂ h₁; omega
+
 instance {n : Nat} {a b : Fin n} : Decidable (Area.can_connect_to.is_succ a b) :=
   if h : a.succ.val < n then
     have : (Area.can_connect_to.is_succ a b) = (b = Fin.castLT a.succ h) := (dite_cond_eq_true (eq_true h)).subst rfl
@@ -1032,9 +1040,19 @@ private structure Area.PathsPart where
   steps : List $ Coordinate area.width area.height
   connected : Area.ConnectedPathPart steps
 
-private def Area.PathsPart.list_not_empty {area : Area} (pp : area.PathsPart) : pp.steps ≠ [] := match pp.steps, pp.connected with
+private theorem Area.PathsPart.list_not_empty {area : Area} (pp : area.PathsPart) : pp.steps ≠ [] := match pp.steps, pp.connected with
 | [], hx => hx.elim
 | s :: ss, _ => List.cons_ne_nil s ss
+
+private theorem Area.PathsPart.tail_connect_start {area : Area} (pp : area.PathsPart) : area.can_connect_to (pp.steps.getLast pp.list_not_empty) area.start :=
+  match hs : pp.steps, pp.list_not_empty, pp.connected with
+  | _ :: [], _, h₁ => h₁
+  | s :: ss :: sss, _, ⟨_,h₂⟩ =>
+    have : (ss :: sss).length < pp.steps.length := hs.substr $ (List.length_cons s (ss :: sss)).substr $ Nat.lt.base (ss :: sss).length
+    Area.PathsPart.tail_connect_start ⟨ss::sss,h₂⟩
+termination_by pp.steps.length
+
+
 
 private def Area.PathsPart.pathHead {area : Area} : area.PathsPart → area.PathHead
 | { steps := s :: [], connected} =>
@@ -1262,46 +1280,134 @@ private theorem Area.PathsPart.join_b_last_head (a b : area.PathsPart) (h₁ : a
     apply Area.PathsPart.join_b_last_head
 termination_by b.steps.length
 
+private theorem Area.PathsPart.join_a_last_last (a b : area.PathsPart) (h₁ : area.are_connected (a.steps.head a.list_not_empty) (b.steps.head b.list_not_empty)) : (Area.PathsPart.join area a b h₁).steps.getLast (Area.PathsPart.join area a b h₁).list_not_empty = a.steps.getLast a.list_not_empty := by
+  generalize h₂ : (Day10.Area.PathsPart.join area a b h₁) = o
+  unfold Area.PathsPart.join at h₂
+  split at h₂
+  case h_1 bh ah as _ _ h₄ h₃ _ _ _ _ hb ha _ _ _ _ =>
+    simp[hb, ←h₂, ←ha]
+    apply List.getLast_cons
+  case h_2 bh b1 bs ah as _ _ h₄ h₃ d4 d3 d2 d1 hb ha d5 d6 d7 d8 =>
+    clear d1 d2 d3 d4 d5 d6 d7 d8
+    simp only at h₂
+    simp[hb, ←h₂, ←ha]
+    rw[←List.getLast_cons (a := bh) a.list_not_empty]
+    have : bs.length + 1 < b.steps.length := by simp only [hb, List.length_cons, Nat.lt_add_one]
+    apply Area.PathsPart.join_a_last_last
+termination_by b.steps.length
 
-private def Area.ClosedPath.fromNE (n : area.PathsPart) (hn : n.steps.getLast n.list_not_empty is_north_of area.start) (e : area.PathsPart) (he : e.steps.getLast e.list_not_empty is_east_of area.start) (h₁ : n.steps.head n.list_not_empty = e.steps.head e.list_not_empty) : area.ClosedPath :=
-  --let joinedPath := match n.steps, n.list_not_empty with
-  --| [n1], _ =>
-  --  match e.steps, e.list_not_empty with
-  --  | e1 :: [], _ => sorry -- can show that n = [n1] → e = [e1 :: e2 :: es] and vice versa.
-  --  | e1 :: e2 :: es, _ => sorry
-  --| n1 :: n2 :: ns, _ =>
-  --  sorry
-  sorry
+-- Don't have the brain right now to write a dependent function that expresses this.
+macro "def_Area.ClosedPath.from" fn:ident ":" p1:term ", "  p2:term " : " p3:term : command =>
+  `(private def $fn (n : area.PathsPart) (hn : $p1 (n.steps.getLast n.list_not_empty) area.start) (e : area.PathsPart) (he : $p2 (e.steps.getLast e.list_not_empty) area.start) (h₁ : n.steps.head n.list_not_empty = e.steps.head e.list_not_empty) : area.ClosedPath :=
+  --if this function would also demand equal path part length, the following branch could be eliminated.
+  let ⟨joinedPath, ⟨h₁, h₂⟩⟩ : ((p : area.PathsPart) ×' (PProd (p.steps.head p.list_not_empty = e.steps.getLast e.list_not_empty) (p.steps.getLast p.list_not_empty = n.steps.getLast n.list_not_empty))) :=
+    match hn₁ : n.steps, n.list_not_empty, n.connected with
+    | [n1], _, _ =>
+      have : e.steps.tail ≠ [] := match he₁ : e.steps, e.list_not_empty with
+      | _ :: e2 :: es, _ => by simp only [List.tail_cons, ne_eq, not_false_eq_true]
+      | e1 :: [], _ => by
+        simp[he₁, hn₁] at *
+        subst e1
+        try exact Area.can_connect_to.is_succ.irrefl hn.left he.left -- NS and WE cases
+        try -- other cases
+          try unfold Area.is_east_of at he
+          try unfold Area.is_south_of at he
+          try unfold Area.is_north_of at he
+          try unfold Area.is_west_of at he
+          rw[hn.right] at he
+          unfold Area.can_connect_to.is_succ at he
+          split at he <;> simp[Fin.ext_iff] at he
+          exact absurd he.left (Nat.succ_ne_self _).symm
+      match he₁ : e.steps, e.list_not_empty, this, e.connected with
+      | e1 :: e2 :: es, _, _, ⟨hc₁ ,hc₂⟩ =>
+        let b : area.PathsPart := {
+          steps := e2 :: es
+          connected := hc₂
+        }
+        have h₂: area.are_connected (n.steps.head n.list_not_empty) (b.steps.head b.list_not_empty) := by simp[hn₁]; simp[hn₁, he₁] at h₁; exact h₁▸hc₁
+        ⟨Area.PathsPart.join area n b h₂, ⟨Area.PathsPart.join_b_last_head area n b h₂, by simp[Area.PathsPart.join_a_last_last area n b h₂, hn₁]⟩ ⟩
+    | n1 :: n2 :: ns, _, ⟨hc₁, hc₂⟩ =>
+      let a : area.PathsPart := {
+        steps := n2 :: ns
+        connected := hc₂
+      }
+      have h₂ : area.are_connected (a.steps.head a.list_not_empty) (e.steps.head e.list_not_empty) := by simp[hn₁]; simp[hn₁] at h₁; exact h₁▸(hc₁.symm)
+      ⟨Area.PathsPart.join area a e h₂, ⟨Area.PathsPart.join_b_last_head area a e h₂, Area.PathsPart.join_a_last_last area a e h₂⟩⟩
+  --Area.PathsPart.tail_connect_start
+  {
+    toPathsPart := joinedPath
+    closed := h₁▸(Area.PathsPart.tail_connect_start e)
+    start := $p3
+    start_valid := ⟨h₂▸hn, h₁▸he⟩
+  })
 
-private abbrev Area.Paths.Solutions := OneOrTwoSolutions Pipe
+def_Area.ClosedPath.from Area.ClosedPath.fromNE : area.is_north_of, area.is_east_of : Pipe.NE
+def_Area.ClosedPath.from Area.ClosedPath.fromES : area.is_east_of, area.is_south_of : Pipe.ES
+def_Area.ClosedPath.from Area.ClosedPath.fromSW : area.is_south_of, area.is_west_of : Pipe.SW
+def_Area.ClosedPath.from Area.ClosedPath.fromWN : area.is_west_of, area.is_north_of : Pipe.WN
+def_Area.ClosedPath.from Area.ClosedPath.fromNS : area.is_north_of, area.is_south_of : Pipe.NS
+def_Area.ClosedPath.from Area.ClosedPath.fromWE : area.is_west_of, area.is_east_of : Pipe.WE
 
--- Returns the tile at the start position that would currently yield a solution.
+private abbrev Area.Paths.Solutions := OneOrTwoSolutions area.ClosedPath
+
+-- Returns the ClosedPaths that would currently yield a solution
 -- Since there can be two closed loops of the same length, it can also return up to two solutions.
 -- example for two solutions:
 --
 --  F7.
 --  LS7
 --  .LJ
-private def Area.Paths.solutions? {area : Area} (paths : area.Paths) : Option Area.Paths.Solutions :=
-  let solution := λ (a b : Option area.PathsPart) ↦ Option.isSome $ (Option.zip a b).filter (λ (l, r) ↦ l.steps.head l.list_not_empty = r.steps.head r.list_not_empty)
-  if solution paths.north paths.east then
-    if solution paths.south paths.west then
-      some $ OneOrTwoSolutions.two Pipe.NE Pipe.SW
+private def Area.Paths.solutions? {area : Area} (paths : area.Paths) : Option (Area.Paths.Solutions area) :=
+  let solution :
+    (a : Option area.PathsPart)
+    → (b : Option area.PathsPart)
+    → (Option ((ab : (area.PathsPart) × (area.PathsPart)) ×' (
+        a = some ab.fst
+        ∧ b = some ab.snd
+        ∧ ab.fst.steps.head ab.fst.list_not_empty = ab.snd.steps.head ab.snd.list_not_empty)))
+    := λ a b ↦
+      match a, b with
+      | some aa, some bb =>
+        if h: aa.steps.head aa.list_not_empty = bb.steps.head bb.list_not_empty then
+          some ⟨(aa,bb),⟨rfl,⟨rfl, h⟩⟩⟩
+        else
+          none
+      | _, _ => none
+
+  -- NE
+  if let some ⟨(n,e),ns,es,he₁⟩ := solution paths.north paths.east then
+    let s1 := (Area.ClosedPath.fromNE area n (paths.north_valid n ns) e (paths.east_valid e es) he₁)
+    if let some ⟨(s,w),ss,ws,he₂⟩ := solution paths.south paths.west then
+      some $ OneOrTwoSolutions.two
+        s1 $
+        Area.ClosedPath.fromSW area s (paths.south_valid s ss) w (paths.west_valid w ws) he₂
     else
-      some $ OneOrTwoSolutions.one Pipe.NE
-  else if solution paths.north paths.south then
-    some $ OneOrTwoSolutions.one Pipe.NS -- no point in checking WE - paths cannot cross.
-  else if solution paths.north paths.west then
-    if solution paths.east paths.south then
-      some $ OneOrTwoSolutions.two Pipe.WN Pipe.ES
+      some $ OneOrTwoSolutions.one s1
+  -- NS
+  else if let some ⟨(n,s),ns,ss,he₁⟩ := solution paths.north paths.south then
+    -- no point in checking WE - paths cannot cross. (todo?: prove)
+    some $ OneOrTwoSolutions.one $ Area.ClosedPath.fromNS area n (paths.north_valid n ns) s (paths.south_valid s ss) he₁
+  -- WN
+  else if let some ⟨(w,n),ws,ns,he₁⟩ := solution paths.west paths.north then
+    let s1 := (Area.ClosedPath.fromWN area w (paths.west_valid w ws) n (paths.north_valid n ns) he₁)
+    if let some ⟨(e,s),es,ss,he₂⟩ := solution paths.east paths.south then
+      some $ OneOrTwoSolutions.two
+        s1 $
+        Area.ClosedPath.fromES area e (paths.east_valid e es) s (paths.south_valid s ss) he₂
     else
-      some $ OneOrTwoSolutions.one Pipe.WN
-  else if solution paths.east paths.south then
-    some $ OneOrTwoSolutions.one Pipe.ES -- no point in checking WN again, has been checked already
-  else if solution paths.east paths.west then
-    some $ OneOrTwoSolutions.one Pipe.WE -- no point in checking NS - paths cannot cross.
-  else if solution paths.south paths.west then
-    some $ OneOrTwoSolutions.one Pipe.SW -- same, no need to check NE
+      some $ OneOrTwoSolutions.one s1
+  -- ES
+  else if let some ⟨(e,s),es,ss,he₁⟩ := solution paths.east paths.south then
+    -- no point in checking WN again, has been checked already
+    some $ OneOrTwoSolutions.one $ Area.ClosedPath.fromES area e (paths.east_valid e es) s (paths.south_valid s ss) he₁
+  -- WE
+  else if let some ⟨(w,e),ws,es,he₁⟩ := solution paths.west paths.east then
+    -- no point in checking NS - paths cannot cross.
+    some $ OneOrTwoSolutions.one $ Area.ClosedPath.fromWE area w (paths.west_valid w ws) e (paths.east_valid e es) he₁
+  -- SW
+  else if let some ⟨(s,w),ss,ws,he₁⟩ := solution paths.south paths.west then
+    -- NE has been checked already
+    some $ OneOrTwoSolutions.one $ Area.ClosedPath.fromSW area s (paths.south_valid s ss) w (paths.west_valid w ws) he₁
   else
     none
 
