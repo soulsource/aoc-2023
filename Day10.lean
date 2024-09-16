@@ -860,18 +860,21 @@ structure Area.PathHead (area : Area) where
 structure Area.BidirPathHead (area : Area) extends Area.PathHead area where
   previous_can_connect_to_current : area.can_connect_to previous current
 
+private theorem Area.can_connect_to_imp_not_start_not_ground (h₁ : Area.can_connect_to area c t) : area[c] ≠ Tile.ground ∧ area[c] ≠ Tile.start :=
+  have h₂ : area[c] ≠ Tile.ground := by
+    cases ht : (area[c] == Tile.ground) <;> simp at ht
+    case false => assumption
+    case true =>
+      cases h₁ <;> simp_all
+  have h₃ : area[c] ≠ Tile.start := by
+    cases ht : (area[c] == Tile.start) <;> simp at ht
+    case false => assumption
+    case true =>
+      cases h₁ <;> simp_all
+  And.intro h₂ h₃
+
 private theorem Area.PathHead.current_not_start_not_ground (pathHead : Area.PathHead area) : area[pathHead.current] ≠ Tile.ground ∧ area[pathHead.current] ≠ Tile.start :=
-  have h₁ : area[pathHead.current] ≠ Tile.ground := by
-    cases ht : (area[pathHead.current] == Tile.ground) <;> simp at ht
-    case false => assumption
-    case true =>
-      cases pathHead.current_can_connect_to_previous <;> simp_all
-  have h₂ : area[pathHead.current] ≠ Tile.start := by
-    cases ht : (area[pathHead.current] == Tile.start) <;> simp at ht
-    case false => assumption
-    case true =>
-      cases pathHead.current_can_connect_to_previous <;> simp_all
-  And.intro h₁ h₂
+  Area.can_connect_to_imp_not_start_not_ground pathHead.current_can_connect_to_previous
 
 section
 variable (area : Area)
@@ -1006,18 +1009,11 @@ private def noSolution {area : Area} : (List $ Area.PathHead area) → Bool
 def part1 (area : Area) : Option Nat := do
   let mut paths : List (Area.PathHead area) := area.pathStartsList
 
+  --Lean does not do termination checking here, but that would fail.
+  --One could, however, prove that this terminates, because the paths cannot cross, do not reverse
+  --and the search space is finite.
   let mut steps := 1
-  -- The condition in the while-loop is not needed. The program always terminates, as the
-  -- search space (Coordinate width height) is finite, paths cannot cross, and all closed
-  -- paths have an even number of steps. But I'm too lazy to prove this now, so, while-loop.
-  -- It's ≤ instead of < here, because there might still be a solution for
-  -- steps * 2 = area.width * area.height. Take this simple grid, for instance:
-  --
-  -- S7    01
-  -- LJ    12
-  while steps * 2 ≤ area.width * area.height do
-    if noSolution paths then
-      none
+  while !noSolution paths do
     if pathsMet paths then
       return steps
     steps := steps + 1
@@ -1195,15 +1191,6 @@ where
   extractProof : {a : Type} → {b : a → Prop} → (Option (PSigma b)) → ((h: Option a) ×' ∀aa, h = some aa → b aa) :=
   λ i ↦ ⟨match i with | .none => none | .some v => some v.fst, by cases i <;> simp; case some b => exact b.snd⟩
 
-inductive OneOrTwoSolutions (α : Type)
-| one : α → OneOrTwoSolutions α
-| two : α → α → OneOrTwoSolutions α
-
-instance : Functor OneOrTwoSolutions where
-  map := λ f s ↦ match s with
-  | .one l => .one $ f l
-  | .two l r => .two (f l) (f r)
-
 private structure Area.ClosedPath extends area.PathsPart where
   closed : area.can_connect_to (steps.head (toPathsPart.list_not_empty)) area.start
   start : Pipe
@@ -1348,16 +1335,9 @@ def_Area.ClosedPath.from Area.ClosedPath.fromWN : area.is_west_of, area.is_north
 def_Area.ClosedPath.from Area.ClosedPath.fromNS : area.is_north_of, area.is_south_of : Pipe.NS
 def_Area.ClosedPath.from Area.ClosedPath.fromWE : area.is_west_of, area.is_east_of : Pipe.WE
 
-private abbrev Area.Paths.Solutions := OneOrTwoSolutions area.ClosedPath
-
--- Returns the ClosedPaths that would currently yield a solution
--- Since there can be two closed loops of the same length, it can also return up to two solutions.
--- example for two solutions:
---
---  F7.
---  LS7
---  .LJ
-private def Area.Paths.solutions? {area : Area} (paths : area.Paths) : Option (Area.Paths.Solutions area) :=
+-- Takes a list of existing closed paths and the current paths state, and moves all closed paths from the paths state to the list of closed paths.
+-- This is needed, as there may be 2 solutions. There might for instance be a closed path from North to East, and another one from South to West.
+private def Area.Paths.extractSolutions {area : Area} (paths : area.Paths) (solutions : List area.ClosedPath) : (area.Paths × List area.ClosedPath) :=
   let solution :
     (a : Option area.PathsPart)
     → (b : Option area.PathsPart)
@@ -1378,38 +1358,58 @@ private def Area.Paths.solutions? {area : Area} (paths : area.Paths) : Option (A
   if let some ⟨(n,e),ns,es,he₁⟩ := solution paths.north paths.east then
     let s1 := (Area.ClosedPath.fromNE area n (paths.north_valid n ns) e (paths.east_valid e es) he₁)
     if let some ⟨(s,w),ss,ws,he₂⟩ := solution paths.south paths.west then
-      some $ OneOrTwoSolutions.two
-        s1 $
-        Area.ClosedPath.fromSW area s (paths.south_valid s ss) w (paths.west_valid w ws) he₂
+      (
+        { north := none, south := none, east := none, west := none, north_valid := nofun, east_valid := nofun, south_valid := nofun, west_valid := nofun },
+        s1 :: Area.ClosedPath.fromSW area s (paths.south_valid s ss) w (paths.west_valid w ws) he₂ :: solutions
+      )
     else
-      some $ OneOrTwoSolutions.one s1
+      (
+        {paths with north := none, east := none, north_valid := nofun, east_valid := nofun},
+        s1 :: solutions
+      )
   -- NS
   else if let some ⟨(n,s),ns,ss,he₁⟩ := solution paths.north paths.south then
     -- no point in checking WE - paths cannot cross. (todo?: prove)
-    some $ OneOrTwoSolutions.one $ Area.ClosedPath.fromNS area n (paths.north_valid n ns) s (paths.south_valid s ss) he₁
+    (
+      {paths with north := none, south := none, north_valid := nofun, south_valid := nofun},
+      Area.ClosedPath.fromNS area n (paths.north_valid n ns) s (paths.south_valid s ss) he₁ :: solutions
+    )
   -- WN
   else if let some ⟨(w,n),ws,ns,he₁⟩ := solution paths.west paths.north then
     let s1 := (Area.ClosedPath.fromWN area w (paths.west_valid w ws) n (paths.north_valid n ns) he₁)
     if let some ⟨(e,s),es,ss,he₂⟩ := solution paths.east paths.south then
-      some $ OneOrTwoSolutions.two
-        s1 $
-        Area.ClosedPath.fromES area e (paths.east_valid e es) s (paths.south_valid s ss) he₂
+      (
+        { north := none, south := none, east := none, west := none, north_valid := nofun, east_valid := nofun, south_valid := nofun, west_valid := nofun },
+        s1 :: Area.ClosedPath.fromES area e (paths.east_valid e es) s (paths.south_valid s ss) he₂ :: solutions
+      )
     else
-      some $ OneOrTwoSolutions.one s1
+      (
+        {paths with west := none, north := none, west_valid := nofun, north_valid := nofun},
+        s1 :: solutions
+      )
   -- ES
   else if let some ⟨(e,s),es,ss,he₁⟩ := solution paths.east paths.south then
     -- no point in checking WN again, has been checked already
-    some $ OneOrTwoSolutions.one $ Area.ClosedPath.fromES area e (paths.east_valid e es) s (paths.south_valid s ss) he₁
+    (
+      {paths with east := none, south := none, east_valid := nofun, south_valid := nofun},
+      Area.ClosedPath.fromES area e (paths.east_valid e es) s (paths.south_valid s ss) he₁ :: solutions
+    )
   -- WE
   else if let some ⟨(w,e),ws,es,he₁⟩ := solution paths.west paths.east then
     -- no point in checking NS - paths cannot cross.
-    some $ OneOrTwoSolutions.one $ Area.ClosedPath.fromWE area w (paths.west_valid w ws) e (paths.east_valid e es) he₁
+    (
+      {paths with west := none, east := none, west_valid := nofun, east_valid := nofun},
+      Area.ClosedPath.fromWE area w (paths.west_valid w ws) e (paths.east_valid e es) he₁ :: solutions
+    )
   -- SW
   else if let some ⟨(s,w),ss,ws,he₁⟩ := solution paths.south paths.west then
     -- NE has been checked already
-    some $ OneOrTwoSolutions.one $ Area.ClosedPath.fromSW area s (paths.south_valid s ss) w (paths.west_valid w ws) he₁
+    (
+      {paths with south := none, west := none, south_valid := nofun, west_valid := nofun},
+      Area.ClosedPath.fromSW area s (paths.south_valid s ss) w (paths.west_valid w ws) he₁ :: solutions
+    )
   else
-    none
+    (paths, solutions)
 
 private def Area.Paths.unsolvable {area : Area} (paths : area.Paths) : Bool :=
   let count := λ (o : Option area.PathsPart) (i : Nat) ↦ if o.isSome then i + 1 else i
@@ -1419,7 +1419,6 @@ private def Area.Paths.unsolvable {area : Area} (paths : area.Paths) : Bool :=
     |> count paths.south
     |> count paths.west
   c < 2
-
 end
 
 private def coordinateSorter (a b : Coordinate w h) : Bool :=
@@ -1452,55 +1451,103 @@ private theorem PipeAtCoordinate.sortByCoordinate_trans (area : Area) : BinaryHe
 private theorem PipeAtCoordinate.sortByCoordinate_total (area : Area) : BinaryHeap.total_le (PipeAtCoordinate.sortByCoordinate (area := area)) :=
   λ a b ↦ coordinateSorter_total area.width area.height a.coordinate b.coordinate
 
-private structure Heap (α : Type) (le : α → α → Bool) where
-  size : Nat
-  binaryHeap : BinaryHeap α le size
+private def PipeAtCoordinate.totalAndTransitiveLe (area : Area) : BinaryHeap.TotalAndTransitiveLe (PipeAtCoordinate.sortByCoordinate (area := area)) := ⟨sortByCoordinate_trans area, sortByCoordinate_total area⟩
 
-private def Heap.ofBinaryHeap (heap : BinaryHeap α le n) : Heap α le := {size := n, binaryHeap := heap}
+section ListMonad
+-- We can do this here without perf issues. The list in question will never have more than 2 elements.
+local instance : Monad List where
+  pure := List.pure
+  bind := List.bind
 
-private def Heap.push (h : Heap α le) (v : α) : Heap α le := { size := h.size + 1, binaryHeap := h.binaryHeap.push v }
+private inductive WestEastFoldState (area : Area)
+| inside : Coordinate area.width area.height → WestEastFoldState area
+| outside : WestEastFoldState area
 
-private def Heap.pop (h : Heap α le) (h₁ : h.size > 0) : (Heap α le × α) :=
-  match h₂ : h.size, h.binaryHeap with
-  | 0, _ => absurd h₂ (Nat.not_eq_zero_of_lt h₁)
-  | (n+1), heap =>
-    let (a, r) := heap.pop
-    ({size := n, binaryHeap := a}, r)
+private structure WestEastFold (area : Area) where
+  state : WestEastFoldState area
+  accumulator : Nat
 
-def part2 (area : Area) : Option (OneOrTwoSolutions Nat) := do
+private def WestEastFold.accumulate (old : WestEastFold area) (element : PipeAtCoordinate area) : WestEastFold area :=
+  match old, element with
+  | { state := .outside, accumulator}, {pipe := Pipe.NE, coordinate}
+  | { state := .outside, accumulator}, {pipe := Pipe.WN, coordinate}
+  | { state := .outside, accumulator}, {pipe := Pipe.NS, coordinate} => { state := .inside coordinate, accumulator}
+  | { state := .outside, accumulator}, {pipe := Pipe.ES, ..}
+  | { state := .outside, accumulator}, {pipe := Pipe.SW, ..}
+  | { state := .outside, accumulator}, {pipe := Pipe.WE, ..} => { state := .outside, accumulator}
+  | { state := .inside lastWall, accumulator}, {pipe := Pipe.NE, coordinate}
+  | { state := .inside lastWall, accumulator}, {pipe := Pipe.WN, coordinate}
+  | { state := .inside lastWall, accumulator}, {pipe := Pipe.NS, coordinate} => { state := .outside, accumulator := accumulator + (coordinate.x - lastWall.x - 1)}
+  | { state := .inside lastWall, accumulator}, {pipe := Pipe.ES, coordinate}
+  | { state := .inside lastWall, accumulator}, {pipe := Pipe.SW, coordinate}
+  | { state := .inside lastWall, accumulator}, {pipe := Pipe.WE, coordinate} => { state := .inside coordinate, accumulator := accumulator + (coordinate.x - lastWall.x - 1)}
+
+def part2 (area : Area) : List Nat := do
   let mut paths := Area.Paths.fromPathStarts area.pathStarts
-  let mut steps := 1
-  let mut solution := none
-  while steps * 2 ≤ area.width * area.height do --again, pointless check, but convinces Lean that this terminates.
-    if paths.unsolvable then
-      throw ()
-    solution := paths.solutions?
-    if (solution.isSome) then
-      break
-    steps := steps + 1
+  let mut solutions := []
+  while !paths.unsolvable do
+    (paths, solutions) := Area.Paths.extractSolutions paths solutions
     paths := paths.step
-
-  solution
-    <&> sorry
-
-
-  --let sortedTilesPerLoop := (closedLoops paths).map λ((a,_), (b,_)) ↦
-  --  let h := Heap.ofBinaryHeap $ BinaryHeap.new (PipeAtCoordinate area) (PipeAtCoordinate.sortByCoordinate_trans area) (PipeAtCoordinate.sortByCoordinate_total area)
---
-  --  --b.foldl Heap.push $ a.foldl Heap.push (h.push area.start)
-  --  h
-
-  sorry
-
-
+  let s ← solutions
+  let pipesAtCoordinate := closedPathToPipesAtCoordinate s
+  -- sort the pipes by coordinate, row-major.
+  let h := BinaryHeap.ofList (PipeAtCoordinate.totalAndTransitiveLe area) pipesAtCoordinate
+  -- Originally I had thought about doing another transformation of the path before sorting.
+  -- The reason was that by folding the path's tiles west-to-east and trackings state if one is on a
+  -- ┌┘, └┘, ┌┐ or └┐ wall would need handling of states like └| which are impossible.
+  -- Proving that those states are impossible would be a lot of work, so a simpler representation
+  -- of the path might have been in order.
+  --
+  -- Meanwhile I realized something though, that makes tracking the state while folding much simpler:
+  -- All state that is needed is "Inside" and "Outside", and there is a very simple condition for
+  -- state switches:
+  -- If a tile has a connection north, it toggles between the states.
+  -- It is unnecessary to track on which kind of wall one currently is, it is enough to look at the current tile.
+  -- For instance:
+  --
+  --   └---┐   |
+  --  oTxxxxiiiTo
+  --
+  --   ┌---┐  |  └--┐
+  --  oxxxxxooTiiTxxxo
+  --
+  --   └---┘  ┌┘   |
+  --  oTxxxTooxTiiiTo
+  --
+  --   |  └---┘   ┌┘
+  --  oTiiTxxxTiiixTo
+  --
+  -- (here x denotes a tile that needs to be ignored, T is a tile that toggles state switch, i is inside, o is outside)
+  --
+  -- That way, even though there is no guarantee that there is no invalid state while folding over the
+  -- sorted tiles, there is no need to handle such invalid state, as the rule "everything that connects north toggles"
+  -- only depends on the current tile.
+  -- I am happy with this, as it means I don't have to write partial functions, use optionals where they aren't needed,
+  -- or return nonsensical values. It's still pretty bad, as the invariant that all lines end outside is not proven,
+  -- but hey, I want to finish this at some point...
+  -- Also, Area.ClosedPath implicitly gives this guarantee, it's just that I don't want to bother transforming it
+  -- along with sorting the tiles...
+  let result := h.fold WestEastFold.accumulate {state := .outside, accumulator := 0}
+  return result.accumulator
 where
-  pipeAt := λ (h : Area.PathHead area) ↦
-    have ⟨h₁, h₂⟩ := Area.PathHead.current_not_start_not_ground h
-    match h₃ : area[h.current] with
-    | .ground => by contradiction
-    | .start => by contradiction
-    | .pipe p => p
-
+  closedPathToPipesAtCoordinate : area.ClosedPath → List (PipeAtCoordinate area) := λcp ↦
+    let rec worker : (area.PathsPart) → List (PipeAtCoordinate area) → (List (PipeAtCoordinate area)) := λpp o ↦
+      match hs : pp.steps, pp.connected with
+      | h :: [], connects_to_start =>
+        let t := area[h]
+        let ⟨(_ : t ≠ Tile.ground), (_ : t ≠ Tile.start)⟩ := Area.can_connect_to_imp_not_start_not_ground connects_to_start
+        match t with
+        | Tile.pipe p => ({coordinate := area.start, pipe := cp.start} :: {coordinate := h, pipe := p} :: o).reverse
+      | s :: ss :: sss, ⟨s_connects_to_ss, rest_is_connected⟩ =>
+        let t := area[s]
+        let ⟨(_ : t ≠ Tile.ground), (_ : t ≠ Tile.start)⟩ := Area.can_connect_to_imp_not_start_not_ground s_connects_to_ss.left
+        match t with
+        | Tile.pipe p =>
+          have : (ss :: sss).length < pp.steps.length := hs.substr $ (List.length_cons s (ss :: sss)).substr $ Nat.lt_add_one (ss :: sss).length
+          worker { steps := ss :: sss, connected := rest_is_connected } $ {coordinate := s, pipe :=p} :: o
+      termination_by x => x.steps.length
+    worker cp.toPathsPart []
+end ListMonad
 ------------------------------------------------------------------------------------------------------------
 open DayPart
 instance : Parse ⟨10, by simp⟩ (ι := Area) where
@@ -1509,18 +1556,36 @@ instance : Parse ⟨10, by simp⟩ (ι := Area) where
 instance : Part ⟨10,_⟩ Parts.One (ι := Area) (ρ := Nat) where
   run := part1
 
-section Test
+instance : Part ⟨10,_⟩ Parts.Two (ι := Area) (ρ := NonEmptyList Nat) where
+  run := NonEmptyList.ofList? ∘ part2
+
 ------------------------------------------------------------------------------------------------------------
+section Test
+
 def testData : String := "7-F7-
 .FJ|7
 SJLL7
 |F--J
 LJ.LJ"
 
+-- Make this clearer
+--   ┌┐
+--  ┌┘|
+-- ┌┘ └┐
+-- |┌--┘
+-- └┘
+
 #eval
   let area := (Area.parse testData)
   match area with
   | .ok a => part1 a
   | .error e => none
+
+
+#eval
+  let area := (Area.parse testData)
+  match area with
+  | .ok a => part2 a
+  | .error e => []
 
 end Test
