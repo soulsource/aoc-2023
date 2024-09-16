@@ -997,33 +997,49 @@ private def Area.pathStartsList : List (Area.PathHead area) :=
   let starts := area.pathStarts
   [ PSigma.fst <$> starts.north, PSigma.fst <$> starts.east, PSigma.fst <$> starts.south, PSigma.fst <$> starts.west].filterMap id
 
-private def pathsMet {area : Area} : (List $ Area.PathHead area) → Bool
-| [] => false
-| p :: ps => ps.any (·.current = p.current) || pathsMet ps
+private def removePathsMet {area : Area} : (List $ Area.PathHead area) → (List $ Area.PathHead area)
+| [] => []
+| p :: ps =>
+  let rest := ps.filter λs ↦ s.current ≠ p.current
+  if rest.length = ps.length then -- no match, keep current path too
+    p :: removePathsMet rest
+  else --removed another path. Remove current too.
+    removePathsMet rest
+termination_by x => x.length
+decreasing_by
+  all_goals
+    simp_wf
+    exact Nat.lt_succ.mpr $ List.listFilterSmallerOrEqualList _ _
+
 
 private def noSolution {area : Area} : (List $ Area.PathHead area) → Bool
 | [] => true
 | _ :: [] => true
 | _ => false
 
-def part1 (area : Area) : Option Nat := do
+section ListMonad
+local instance : Monad List where
+  bind := List.bind
+  pure := List.pure
+
+def part1 (area : Area) : List Nat := do
   let mut paths : List (Area.PathHead area) := area.pathStartsList
 
   --Lean does not do termination checking here, but that would fail.
   --One could, however, prove that this terminates, because the paths cannot cross, do not reverse
   --and the search space is finite.
   let mut steps := 1
+  let mut solutions : List Nat := []
   while !noSolution paths do
-    if pathsMet paths then
-      return steps
-    steps := steps + 1
+    steps := steps + 1 -- it's fine to do the first step without checking for a result. The first result is at least 2 steps from start.
     paths := paths.filterMap (Functor.map Area.BidirPathHead.toPathHead ∘ area.nextPathStep)
-  none
-where
-  noSolution := λ (ps : List $ Area.PathHead area) ↦ match ps with
-  | [] => true
-  | _ :: [] => true
-  | _ => false
+    let newPaths := removePathsMet paths
+    if paths.length ≠ newPaths.length then
+      solutions := steps :: solutions
+    paths := newPaths
+  solutions
+
+end ListMonad
 
 ------------------------------------------------------------------------------------------------------------
 
@@ -1553,8 +1569,8 @@ open DayPart
 instance : Parse ⟨10, by simp⟩ (ι := Area) where
   parse := Except.mapError toString ∘ Area.parse
 
-instance : Part ⟨10,_⟩ Parts.One (ι := Area) (ρ := Nat) where
-  run := part1
+instance : Part ⟨10,_⟩ Parts.One (ι := Area) (ρ := NonEmptyList Nat) where
+  run := NonEmptyList.ofList? ∘ part1
 
 instance : Part ⟨10,_⟩ Parts.Two (ι := Area) (ρ := NonEmptyList Nat) where
   run := NonEmptyList.ofList? ∘ part2
@@ -1562,11 +1578,13 @@ instance : Part ⟨10,_⟩ Parts.Two (ι := Area) (ρ := NonEmptyList Nat) where
 ------------------------------------------------------------------------------------------------------------
 section Test
 
-def testData : String := "7-F7-
-.FJ|7
-SJLL7
-|F--J
-LJ.LJ"
+--def testData : String := "7-F7-
+--.FJ|7
+--SJLL7
+--|F--J
+--LJ.LJ"
+
+--#eval (Area.parse testData)
 
 -- Make this clearer
 --   ┌┐
@@ -1575,17 +1593,17 @@ LJ.LJ"
 -- |┌--┘
 -- └┘
 
-#eval
-  let area := (Area.parse testData)
-  match area with
-  | .ok a => part1 a
-  | .error e => none
-
-
-#eval
-  let area := (Area.parse testData)
-  match area with
-  | .ok a => part2 a
-  | .error e => []
+--#eval
+--  let area := (Area.parse testData)
+--  match area with
+--  | .ok a => part1 a
+--  | .error e => []
+--
+--
+--#eval
+--  let area := (Area.parse testData)
+--  match area with
+--  | .ok a => part2 a
+--  | .error e => []
 
 end Test
