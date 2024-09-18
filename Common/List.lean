@@ -49,3 +49,8 @@ def compare {α : Type} [Ord α] (a b : List α) := match a, b with
 
 instance {α : Type} [Ord α] : Ord (List α) where
   compare := compare
+
+def not_empty_iff_size_gt_zero {list : List α} : list.isEmpty = false ↔ list.length > 0 :=
+  match list with
+  | [] => ⟨nofun, nofun⟩
+  | l :: ls => ⟨λ_ ↦ (List.length_cons l ls).substr (Nat.succ_pos ls.length), λ_ => rfl⟩

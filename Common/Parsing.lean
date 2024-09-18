@@ -1,5 +1,7 @@
 /- This file contains various parsing helpers. Started _after_ Day10. -/
 
+import Common.List
+
 namespace Parsing
 
 structure RectangularGrid (Element : Type) where
@@ -44,3 +46,33 @@ def RectangularGrid.Get {grid : RectangularGrid Element} (coordinate : grid.Coor
 
 instance : GetElem (RectangularGrid Element) (RectangularGrid.Coordinate grid) Element (λg _ ↦ g = grid) where
   getElem := λ g c h ↦ g.Get (h▸c)
+
+inductive RectangularGrid.ParseError (ParseCharError : Type)
+| NoInput : RectangularGrid.ParseError ParseCharError
+| NotRectangular : RectangularGrid.ParseError ParseCharError
+| CharacterParsingError : ParseCharError → RectangularGrid.ParseError ParseCharError
+
+instance [ToString ParseCharError] : ToString (RectangularGrid.ParseError ParseCharError) where
+  toString := λ
+  | .NoInput => "No input provided."
+  | .NotRectangular => "Input is not rectangular."
+  | .CharacterParsingError e => ToString.toString e
+
+def RectangularGrid.parseSingleLine (parseCharacter : Char → Except ParseCharError Element) (alreadyParsed : Array Element) (remainingLine : Substring) : Except (RectangularGrid.ParseError ParseCharError) (Array Element × Nat) :=
+  sorry
+
+def RectangularGrid.parseLines (parseCharacter : Char → Except ParseCharError Element) (alreadyParsed : Array Element) (remainingLines : List Substring) : Except (RectangularGrid.ParseError ParseCharError) (Array Element × Nat × Nat) :=
+  sorry
+
+def RectangularGrid.ofSubstring (parseCharacter : Char → Except ParseCharError Element) (input : Substring) : Except (RectangularGrid.ParseError ParseCharError) (RectangularGrid Element) :=
+  let input := input.trim
+  let lines := input.splitOn "\n"
+  if h₁ : lines.isEmpty then
+    throw RectangularGrid.ParseError.NoInput
+  else
+    --let height := lines.length
+    --let width := lines[0]'(List.not_empty_iff_size_gt_zero.mp $ (Bool.not_eq_true _).mp h₁)
+  sorry
+
+def RectangularGrid.ofString (parseCharacter : Char → Except ParseCharError Element) (input : String) : Except (RectangularGrid.ParseError ParseCharError) (RectangularGrid Element) :=
+  ofSubstring parseCharacter input.toSubstring
