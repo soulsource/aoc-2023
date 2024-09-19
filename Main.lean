@@ -42,6 +42,8 @@ def try_run_day_part (day : Days) (part : Parts) (data : String) : IO String :=
   |  ⟨9,_⟩, Parts.Two => try_run_day_part_impl  ⟨9,_⟩ Parts.Two data
   | ⟨10,_⟩, Parts.One => try_run_day_part_impl ⟨10,_⟩ Parts.One data
   | ⟨10,_⟩, Parts.Two => try_run_day_part_impl ⟨10,_⟩ Parts.Two data
+  | ⟨11,_⟩, Parts.One => try_run_day_part_impl ⟨11,_⟩ Parts.One data
+  | ⟨11,_⟩, Parts.Two => try_run_day_part_impl ⟨11,_⟩ Parts.Two data
   | _, _ => throw $ IO.userError "The requested combination of day/part has not been implemented yet."
 
 def main (parameters : List String): IO Unit := do
