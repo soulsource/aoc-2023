@@ -21,10 +21,13 @@ structure RectangularGrid.Coordinate (grid : RectangularGrid Element) where
   x : Fin grid.width
   y : Fin grid.height
 
-private def RectangularGrid.Coordinate.toIndex {grid : RectangularGrid Element} (coordinate : grid.Coordinate) : Fin (grid.width * grid.height) :=
+instance : ToString (RectangularGrid.Coordinate grid) where
+  toString := λx ↦ s!"x: {x.x}/{grid.width}, y : {x.y}/{grid.height}"
+
+def RectangularGrid.Coordinate.toIndex {grid : RectangularGrid Element} (coordinate : grid.Coordinate) : Fin (grid.width * grid.height) :=
   ⟨coordinate.x + grid.width * coordinate.y, Nat.two_d_coordinate_to_index_lt_size coordinate.x.isLt coordinate.y.isLt⟩
 
-private def RectangularGrid.Coordinate.ofIndex (grid : RectangularGrid Element) (index : Fin (grid.width * grid.height)) : grid.Coordinate :=
+def RectangularGrid.Coordinate.ofIndex {grid : RectangularGrid Element} (index : Fin (grid.width * grid.height)) : grid.Coordinate :=
   have : grid.width > 0 :=
     have := index.isLt
     match h : grid.width with
@@ -35,7 +38,7 @@ private def RectangularGrid.Coordinate.ofIndex (grid : RectangularGrid Element) 
     y := ⟨index.val / grid.width, Nat.div_lt_of_lt_mul index.isLt⟩
   }
 
-theorem Coordinate.toIndex_inv_fromIndex {grid : RectangularGrid Element} (index : Fin (grid.width * grid.height)) : RectangularGrid.Coordinate.toIndex (RectangularGrid.Coordinate.ofIndex grid index) = index := by
+theorem RectangularGrid.Coordinate.toIndex_inv_fromIndex {grid : RectangularGrid Element} (index : Fin (grid.width * grid.height)) : RectangularGrid.Coordinate.toIndex (RectangularGrid.Coordinate.ofIndex index) = index := by
   simp only [RectangularGrid.Coordinate.toIndex, RectangularGrid.Coordinate.ofIndex, Nat.mod_add_div, Fin.eta]
 
 def RectangularGrid.Get {grid : RectangularGrid Element} (coordinate : grid.Coordinate) : Element :=
