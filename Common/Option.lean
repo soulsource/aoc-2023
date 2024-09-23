@@ -16,3 +16,7 @@ def bindWithProof (o : Option α) (f : (v : α) → (o = some v) → Option β) 
   | .none => none
 
 def mapWithProof (o : Option α) (f : (v : α) → (o = some v) → β) : Option β := bindWithProof o (some $ f · ·)
+
+def ofBool : Bool → Option Unit
+  | .false => none
+  | .true => some ()
