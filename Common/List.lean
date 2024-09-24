@@ -54,3 +54,19 @@ def not_empty_iff_size_gt_zero {list : List α} : list.isEmpty = false ↔ list.
   match list with
   | [] => ⟨nofun, nofun⟩
   | l :: ls => ⟨λ_ ↦ (List.length_cons l ls).substr (Nat.succ_pos ls.length), λ_ => rfl⟩
+
+def ne_nil_of_not_empty {list : List α} : list.isEmpty = false ↔ list ≠ [] :=
+  match list with
+  | [] => ⟨nofun, nofun⟩
+  | _ :: _ => ⟨nofun, λ_ ↦ List.isEmpty_cons⟩
+
+def drop_while_length_le (list : List α) (f : α → Bool) : (list.dropWhile f).length ≤ list.length := by
+  unfold dropWhile
+  split
+  case h_1 => exact Nat.le_refl _
+  case h_2 =>
+    split
+    case h_2 => exact Nat.le_refl _
+    case h_1 a as _  _ =>
+      have := drop_while_length_le as f
+      exact Nat.le_trans this (Nat.le_succ as.length)
