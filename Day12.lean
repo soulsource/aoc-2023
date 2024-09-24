@@ -1,4 +1,5 @@
 import «Common»
+import Lean.Data.HashMap
 
 namespace Day12
 
@@ -8,7 +9,7 @@ inductive SpringState
 | operational
 | damaged
 | unknown
-deriving Repr, BEq
+deriving Repr, BEq, Hashable
 
 instance : ToString (List SpringState) where
   toString := λl ↦
@@ -109,38 +110,46 @@ def mustFirstBeDamaged : (states : List SpringState) → Bool
 | .damaged :: _ => true
 | _ => false
 
-def countPossiblePositionsWithDamaged (remainingSpace : List SpringState) (remainingDamagedGroups : List Nat) (h₁ : remainingDamagedGroups ≠ []) : Nat :=
+abbrev PossiblePositionsMemo := Lean.HashMap (List SpringState × List Nat) Nat
+
+def countPossiblePositionsWithDamagedMemoized (memo : PossiblePositionsMemo) (remainingSpace : List SpringState) (remainingDamagedGroups : List Nat) (h₁ : remainingDamagedGroups ≠ []) : (PossiblePositionsMemo × Nat) :=
   if h₂ : remainingSpace.isEmpty then
-    0
+    (memo,0)
   else
     match remainingDamagedGroups with
     | g :: gs =>
-      let fromCurrentPosition :=
+      let (memo, fromCurrentPosition) :=
         if canFirstNBeDamaged remainingSpace g then
           if h₃ : gs.isEmpty then
             if (remainingSpace.drop g).any (· == .damaged) then
-              0
+              (memo, 0)
             else
-              1
+              (memo, 1)
           else
             let d := (remainingSpace.drop g)
             if canFirstBeOperational d then
-              countPossiblePositionsWithDamaged (d.drop 1) gs (List.ne_nil_of_not_empty.mp $ (Bool.not_eq_true _).mp h₃)
+              let d := (d.drop 1)
+              if let some r := memo.find? (d, gs) then
+                (memo,r)
+              else
+                let (memo, r) :=countPossiblePositionsWithDamagedMemoized memo d gs (List.ne_nil_of_not_empty.mp $ (Bool.not_eq_true _).mp h₃)
+                (memo.insert (d, gs) r, r)
             else
-              0
+              (memo, 0)
         else
-          0
+          (memo, 0)
       have  : remainingSpace.length > 0 := List.not_empty_iff_size_gt_zero.mp $ (Bool.not_eq_true _).mp h₂
-      --have _termination : (List.dropWhile (fun x => x == SpringState.damaged) remainingSpace).length - 1 < remainingSpace.length := by
-      --  have := List.drop_while_length_le remainingSpace (· == .damaged)
-      --  omega
-      let fromOtherPositions :=
+      let (memo, fromOtherPositions) :=
         if mustFirstBeDamaged remainingSpace then
-          0
+          (memo, 0)
         else
-          --let remainingSpace := remainingSpace.dropWhile (· == .damaged) --before the damaged group there must be an operational one.
-          countPossiblePositionsWithDamaged (remainingSpace.drop 1) (g :: gs) h₁
-      fromCurrentPosition + fromOtherPositions
+          let remainingSpace := (remainingSpace.drop 1)
+          if let some r := memo.find? (remainingSpace, g :: gs) then
+            (memo,r)
+          else
+            let (memo, r) := countPossiblePositionsWithDamagedMemoized memo remainingSpace (g :: gs) h₁
+            (memo.insert (remainingSpace, g :: gs) r, r)
+      (memo, fromCurrentPosition + fromOtherPositions)
 termination_by remainingSpace.length + remainingDamagedGroups.length
 
 def countPossiblePositions (remainingSpace : List SpringState) (remainingDamagedGroups : List Nat) : Nat :=
@@ -153,12 +162,23 @@ def countPossiblePositions (remainingSpace : List SpringState) (remainingDamaged
     else
       0
   else
-    countPossiblePositionsWithDamaged remainingSpace remainingDamagedGroups (List.ne_nil_of_not_empty.mp $ (Bool.not_eq_true _).mp h)
+    Prod.snd $ countPossiblePositionsWithDamagedMemoized Lean.HashMap.empty remainingSpace remainingDamagedGroups (List.ne_nil_of_not_empty.mp $ (Bool.not_eq_true _).mp h)
 
 
 def part1 (springs : List SpringArrangement) : Nat :=
-  let possiblePositions := springs.map λ{mask, damagedGroups} ↦ countPossiblePositions mask damagedGroups
+  let possiblePositions := springs.map λ{mask, damagedGroups} ↦ Task.spawn λ_ ↦ countPossiblePositions mask damagedGroups
+  let possiblePositions := possiblePositions.map Task.get
   possiblePositions.foldl (· + ·) 0
+
+----------------------------------------------------------------------------------------------------
+
+def convertInputToDay2 (l : List SpringArrangement) : List SpringArrangement :=
+  l.map λ{mask, damagedGroups} ↦ {
+    mask := mask ++ [.unknown] ++ mask ++ [.unknown] ++ mask ++ [.unknown] ++ mask ++ [.unknown] ++ mask
+    damagedGroups := damagedGroups ++ damagedGroups ++ damagedGroups ++ damagedGroups ++ damagedGroups
+  }
+
+def part2 : (springs : List SpringArrangement) → Nat := part1 ∘ convertInputToDay2
 
 ----------------------------------------------------------------------------------------------------
 
@@ -169,6 +189,9 @@ instance : Parse ⟨12, by simp⟩ (ι := List SpringArrangement) where
 instance : Part ⟨12,_⟩ Parts.One (ι := List SpringArrangement) (ρ := Nat) where
   run := some ∘ part1
 
+instance : Part ⟨12,_⟩ Parts.Two (ι := List SpringArrangement) (ρ := Nat) where
+  run := some ∘ part2
+
 ----------------------------------------------------------------------------------------------------
 
 def testData := "???.### 1,1,3
@@ -178,7 +201,7 @@ def testData := "???.### 1,1,3
 ????.######..#####. 1,6,5
 ?###???????? 3,2,1"
 
-#eval parse testData <&> part1
+#eval parse testData <&> part2
 
 def testData2 := "?##?.##???????#??#.. 2,10,1"
 
