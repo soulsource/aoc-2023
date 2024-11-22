@@ -71,7 +71,7 @@ def part1 (games : List Game) : Nat :=
 def part2 (games : List Game) : Nat :=
   let powerOfGame := λ (g : Game) ↦
     let minReq := λ (c : Draw Nat → Nat) ↦
-      g.draw.map c |> List.maximum? |> flip Option.getD 0
+      g.draw.map c |> List.max? |> flip Option.getD 0
     minReq Draw.red * minReq Draw.green * minReq Draw.blue
   let powers := games.map powerOfGame
   powers.foldl Nat.add 0

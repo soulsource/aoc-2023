@@ -91,7 +91,7 @@ def parse (schematic : String) : Except String Schematic := do
 
 def part1 (schematic : Schematic) : Nat :=
   -- fast lookup: We need to know if a part is at a given coordinate
-  open Lean(HashSet) in
+  open Std(HashSet) in
   let partCoordinates := HashSet.insertMany HashSet.empty $ schematic.parts.map Part.position
   let partNumbers := schematic.numbers.filter λnumber ↦
     number.positions.any λposition ↦
@@ -101,13 +101,13 @@ def part1 (schematic : Schematic) : Nat :=
 def part2 (schematic : Schematic) : Nat :=
   -- and now it is obvious that keeping the parsed input free of opinions was a good idea.
   -- because here we need quick lookup for the numbers, not the parts.
-  open Lean(HashMap) in
+  open Std(HashMap) in
   let numberCoordinates : HashMap Coordinate PartNumber :=
-    Lean.HashMap.ofList $ schematic.numbers.bind $ λ pn ↦ pn.positions.map (·, pn)
+    HashMap.ofList $ schematic.numbers.bind $ λ pn ↦ pn.positions.map (·, pn)
   let gearSymbols := schematic.parts.filter (Part.symbol · == '*')
   -- but the symbols aren't enough, they need to be adjacent to **exactly** 2 numbers
   let numbersNextGearSymbols := List.eraseReps <$> gearSymbols.map λgs ↦
-    gs.position.adjacents.filterMap numberCoordinates.find?
+    gs.position.adjacents.filterMap numberCoordinates.get?
   let gearSymbols := numbersNextGearSymbols.filter (List.length · == 2)
   let gearRatios := gearSymbols.map $ List.foldl (· * PartNumber.value ·) 1
   gearRatios.foldl (· + ·) 0

@@ -48,7 +48,7 @@ private def parseWaypoint (input : String) : Except String Waypoint :=
 private def parseWaypoints (input : List String) : Except String $ List Waypoint :=
   input.mapM parseWaypoint
 
-open Lean in
+open Std in
 private def validateWaypointLinks (waypoints : List Waypoint) : Bool :=
   let validLinks := HashSet.insertMany HashSet.empty $ waypoints.map Waypoint.id
   waypoints.all λw ↦ validLinks.contains w.left && validLinks.contains w.right
@@ -88,18 +88,18 @@ private def ConnectedWaypoints.get : ConnectedWaypoints →  Instruction → Way
 
 -- does a single pass over all instructions. Returns err if no result has been found and another pass is needed.
 -- error is optional - if none, then there is an inconsistency in the input and we are stuck.
-private def pass (waypoints : Lean.HashMap WaypointId ConnectedWaypoints) (alreadyDoneSteps : Nat) (currentPosition : WaypointId) (instructions : List Instruction) : Except (Option (Nat × WaypointId)) Nat := do
+private def pass (waypoints : Std.HashMap WaypointId ConnectedWaypoints) (alreadyDoneSteps : Nat) (currentPosition : WaypointId) (instructions : List Instruction) : Except (Option (Nat × WaypointId)) Nat := do
   if currentPosition == "ZZZ" then
     return alreadyDoneSteps
   match instructions with
   | [] => throw $ some (alreadyDoneSteps, currentPosition)
   | a :: as =>
-    let currentWaypoint := waypoints.find? currentPosition
+    let currentWaypoint := waypoints.get? currentPosition
     match currentWaypoint with
     | none => throw none -- should not happen
     | some currentWaypoint => pass waypoints (alreadyDoneSteps + 1) (currentWaypoint.get a) as
 
-private def part1_impl (waypoints : Lean.HashMap WaypointId ConnectedWaypoints) (instructions : List Instruction) (possibleStarts : List WaypointId) (alreadyDoneSteps : Nat) (currentPosition : WaypointId) : Option Nat :=
+private def part1_impl (waypoints : Std.HashMap WaypointId ConnectedWaypoints) (instructions : List Instruction) (possibleStarts : List WaypointId) (alreadyDoneSteps : Nat) (currentPosition : WaypointId) : Option Nat :=
   let remainingStarts := possibleStarts.filter λs ↦ s != currentPosition
   if remainingStarts.length < possibleStarts.length then -- written this way to make termination_by easy
     let passResult := pass waypoints alreadyDoneSteps currentPosition instructions
@@ -111,7 +111,7 @@ private def part1_impl (waypoints : Lean.HashMap WaypointId ConnectedWaypoints) 
     none -- walking in circles
   termination_by possibleStarts.length
 
-open Lean in
+open Std in
 def part1 (input : List Instruction × List Waypoint) : Option Nat :=
   let possibleStarts := input.snd.map Waypoint.id
   let waypoints : HashMap WaypointId ConnectedWaypoints := HashMap.ofList $ input.snd.map λw ↦ (w.id, {left := w.left, right := w.right : ConnectedWaypoints})
@@ -130,13 +130,13 @@ def part1 (input : List Instruction × List Waypoint) : Option Nat :=
 
 -- let's try brute force first.
 
-private def parallelPass (waypoints : Lean.HashMap WaypointId ConnectedWaypoints) (alreadyDoneSteps : Nat) (currentPositions : List WaypointId) (instructions : List Instruction) : Except (Option (Nat × (List WaypointId))) Nat := do
+private def parallelPass (waypoints : Std.HashMap WaypointId ConnectedWaypoints) (alreadyDoneSteps : Nat) (currentPositions : List WaypointId) (instructions : List Instruction) : Except (Option (Nat × (List WaypointId))) Nat := do
   if currentPositions.all λw ↦ w.endsWith "Z" then
     return alreadyDoneSteps
   match instructions with
   | [] => throw $ some (alreadyDoneSteps, currentPositions)
   | a :: as =>
-    let currentWaypoint := currentPositions.mapM waypoints.find?
+    let currentWaypoint := currentPositions.mapM waypoints.get?
     match currentWaypoint with
     | none => throw none -- should not happen
     | some currentWaypoints =>
@@ -147,7 +147,7 @@ private def parallelPass (waypoints : Lean.HashMap WaypointId ConnectedWaypoints
 private def totalRemainingStarts (s : List (List WaypointId)) : Nat :=
   s.foldl (·+·.length) 0
 
-private def part2_impl (waypoints : Lean.HashMap WaypointId ConnectedWaypoints) (instructions : List Instruction) (alreadyDoneSteps : Nat) (possibleStarts : List (List WaypointId)) (currentPositions : List WaypointId) : Option Nat :=
+private def part2_impl (waypoints : Std.HashMap WaypointId ConnectedWaypoints) (instructions : List Instruction) (alreadyDoneSteps : Nat) (possibleStarts : List (List WaypointId)) (currentPositions : List WaypointId) : Option Nat :=
   let remainingStarts := (possibleStarts.zip currentPositions).map λs ↦ s.fst.filter λt ↦ t != s.snd
   -- I _really_ don't want to prove stuff by hand... Luckily this works.
   if totalRemainingStarts remainingStarts < totalRemainingStarts possibleStarts then
@@ -251,7 +251,7 @@ private def CyclingGoal.combine (a b : CyclingGoal) : Option CyclingGoal :=
     let start := start.toNat
     some {start, interval }
 
-private def findCyclingGoalsInPathPass (waypoints : Lean.HashMap WaypointId ConnectedWaypoints) (alreadyDoneSteps : Nat) (currentPosition : WaypointId) (instructions : List Instruction) (visitedGoals : List Nat) : Option (Nat × WaypointId × (List Nat)) := do
+private def findCyclingGoalsInPathPass (waypoints : Std.HashMap WaypointId ConnectedWaypoints) (alreadyDoneSteps : Nat) (currentPosition : WaypointId) (instructions : List Instruction) (visitedGoals : List Nat) : Option (Nat × WaypointId × (List Nat)) := do
   let visitedGoals := if currentPosition.endsWith "Z" then
     alreadyDoneSteps :: visitedGoals
   else
@@ -259,12 +259,12 @@ private def findCyclingGoalsInPathPass (waypoints : Lean.HashMap WaypointId Conn
   match instructions with
   | [] => some (alreadyDoneSteps, currentPosition, visitedGoals)
   | a :: as =>
-    let currentWaypoint := waypoints.find? currentPosition
+    let currentWaypoint := waypoints.get? currentPosition
     match currentWaypoint with
     | none => none -- should not happen
     | some currentWaypoint => findCyclingGoalsInPathPass waypoints (alreadyDoneSteps + 1) (currentWaypoint.get a) as visitedGoals
 
-private def findCyclingGoalsInPath_impl (waypoints : Lean.HashMap WaypointId ConnectedWaypoints) (instructions : List Instruction) (possibleStarts : List WaypointId) (visitedGoals : List Nat) (visitedStarts : List (WaypointId × Nat)) (currentPosition : WaypointId) (currentSteps : Nat) : List CyclingGoal :=
+private def findCyclingGoalsInPath_impl (waypoints : Std.HashMap WaypointId ConnectedWaypoints) (instructions : List Instruction) (possibleStarts : List WaypointId) (visitedGoals : List Nat) (visitedStarts : List (WaypointId × Nat)) (currentPosition : WaypointId) (currentSteps : Nat) : List CyclingGoal :=
   let remainingStarts := possibleStarts.filter λs ↦ s != currentPosition
   if remainingStarts.length < possibleStarts.length then -- written this way to make termination_by easy
     let visitedStarts := (currentPosition, currentSteps) :: visitedStarts
@@ -282,19 +282,19 @@ private def findCyclingGoalsInPath_impl (waypoints : Lean.HashMap WaypointId Con
       none -- goal was reached before we started to walk in cycles, ignore.
   termination_by possibleStarts.length
 
-private def findCyclingGoalsInPath (waypoints : Lean.HashMap WaypointId ConnectedWaypoints) (instructions : List Instruction) (possibleStarts : List WaypointId) (startPosition : WaypointId) : List CyclingGoal :=
+private def findCyclingGoalsInPath (waypoints : Std.HashMap WaypointId ConnectedWaypoints) (instructions : List Instruction) (possibleStarts : List WaypointId) (startPosition : WaypointId) : List CyclingGoal :=
   findCyclingGoalsInPath_impl waypoints instructions possibleStarts [] [] startPosition 0
 
 -- returns the number of steps needed until the first _commmon_ goal that cycles is found.
-private def findFirstCommonCyclingGoal (waypoints : Lean.HashMap WaypointId ConnectedWaypoints) (instructions : List Instruction) (possibleStarts : List WaypointId) (startPositions : List WaypointId) : Option Nat :=
+private def findFirstCommonCyclingGoal (waypoints : Std.HashMap WaypointId ConnectedWaypoints) (instructions : List Instruction) (possibleStarts : List WaypointId) (startPositions : List WaypointId) : Option Nat :=
   let cyclingGoals := startPositions.map $ findCyclingGoalsInPath waypoints instructions possibleStarts
   let combinedGoals : List CyclingGoal := match cyclingGoals with
     | [] => []
     | g :: gs => flip gs.foldl g λc n ↦ c.bind λ cc ↦ n.filterMap λ nn ↦ nn.combine cc
   let cyclingGoalStarts := combinedGoals.map CyclingGoal.start
-  cyclingGoalStarts.minimum?
+  cyclingGoalStarts.min?
 
-open Lean in
+open Std in
 def part2 (input : List Instruction × List Waypoint) : Option Nat :=
   let possibleStarts := input.snd.map Waypoint.id
   let waypoints : HashMap WaypointId ConnectedWaypoints := HashMap.ofList $ input.snd.map λw ↦ (w.id, {left := w.left, right := w.right : ConnectedWaypoints})

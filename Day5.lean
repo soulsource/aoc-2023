@@ -180,7 +180,7 @@ def part1 (input : ((List Seed) × Almanach)) : Option Nat :=
                       ∘ a.soilToFertilizer.apply
                       ∘ a.seedsToSoil.apply
   let locations := input.fst.map seedToLocation
-  NatId.toNat <$> locations.minimum?
+  NatId.toNat <$> locations.min?
 
 
 -- Part 2 seems unmanageable by brute force.
@@ -271,7 +271,7 @@ private def part1_2 (input : ((List Seed) × Almanach)) : Option Nat :=
   let seedsToLocation := seedsToHumidity.combine (Mappings2.fromMappings a.humidityToLocation)
   let seedToLocation  := seedsToLocation.apply
   let locations := input.fst.map seedToLocation
-  NatId.toNat <$> locations.minimum?
+  NatId.toNat <$> locations.min?
 
 private structure SeedRange where
   start : Seed
@@ -315,7 +315,7 @@ def part2 (input : ((List Seed) × Almanach)) : Option Nat :=
   let potentialSeeds := seedToLocation.mappings.filterMap λ m ↦
     (SeedRange.findSmallestSeedAbove seedRanges m.start) -- could filter by range end, but who cares?
   let locations := potentialSeeds.map seedToLocation.apply
-  NatId.toNat <$> locations.minimum?
+  NatId.toNat <$> locations.min?
 
 open DayPart
 instance : Parse ⟨5, by simp⟩ (ι := (List Seed) × Almanach) where

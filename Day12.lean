@@ -110,7 +110,7 @@ def mustFirstBeDamaged : (states : List SpringState) → Bool
 | .damaged :: _ => true
 | _ => false
 
-abbrev PossiblePositionsMemo := Lean.HashMap (List SpringState × List Nat) Nat
+abbrev PossiblePositionsMemo := Std.HashMap (List SpringState × List Nat) Nat
 
 def countPossiblePositionsWithDamagedMemoized (memo : PossiblePositionsMemo) (remainingSpace : List SpringState) (remainingDamagedGroups : List Nat) (h₁ : remainingDamagedGroups ≠ []) : (PossiblePositionsMemo × Nat) :=
   if h₂ : remainingSpace.isEmpty then
@@ -129,7 +129,7 @@ def countPossiblePositionsWithDamagedMemoized (memo : PossiblePositionsMemo) (re
             let d := (remainingSpace.drop g)
             if canFirstBeOperational d then
               let d := (d.drop 1)
-              if let some r := memo.find? (d, gs) then
+              if let some r := memo.get? (d, gs) then
                 (memo,r)
               else
                 let (memo, r) :=countPossiblePositionsWithDamagedMemoized memo d gs (List.ne_nil_of_not_empty.mp $ (Bool.not_eq_true _).mp h₃)
@@ -144,7 +144,7 @@ def countPossiblePositionsWithDamagedMemoized (memo : PossiblePositionsMemo) (re
           (memo, 0)
         else
           let remainingSpace := (remainingSpace.drop 1)
-          if let some r := memo.find? (remainingSpace, g :: gs) then
+          if let some r := memo.get? (remainingSpace, g :: gs) then
             (memo,r)
           else
             let (memo, r) := countPossiblePositionsWithDamagedMemoized memo remainingSpace (g :: gs) h₁
@@ -162,7 +162,7 @@ def countPossiblePositions (remainingSpace : List SpringState) (remainingDamaged
     else
       0
   else
-    Prod.snd $ countPossiblePositionsWithDamagedMemoized Lean.HashMap.empty remainingSpace remainingDamagedGroups (List.ne_nil_of_not_empty.mp $ (Bool.not_eq_true _).mp h)
+    Prod.snd $ countPossiblePositionsWithDamagedMemoized Std.HashMap.empty remainingSpace remainingDamagedGroups (List.ne_nil_of_not_empty.mp $ (Bool.not_eq_true _).mp h)
 
 
 def part1 (springs : List SpringArrangement) : Nat :=
