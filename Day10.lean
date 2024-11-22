@@ -449,22 +449,21 @@ private theorem Array.getElem!_eq_getElem {α : Type u} [Inhabited α] {a : Arra
 private theorem Array.get_push {α : Type u} (arr : Array α) (v : α) (index : Nat) (h₁ : index < arr.size) : arr[index] = (arr.push v)[index]'(by simp[Nat.lt_succ.mpr (Nat.le_of_lt h₁)]) := by
   cases arr
   unfold Array.push getElem Array.instGetElemNatLtSize Array.get
-  simp
-  rw[List.getElem_append]
+  simp[List.getElem_append, h₁]
 
 private theorem Area.ParseLine_leaves_start_if_some (previous : Area.Raw) (pos : Nat) (line : Substring) (h₁ : previous.height > 0) {res : (Nat × Area.Raw)} (h₂ : (Area.parseLine previous pos line h₁) = Except.ok res) (h₃ : previous.start.isSome) : Fin.val <$> res.2.start = Fin.val <$> previous.start := by
   unfold Area.parseLine at h₂
   split at h₂
   case isTrue => simp at h₂; rw[←h₂]
   case isFalse h₄ =>
-    split at h₂ ; exact h₂.rec
+    split at h₂ ; contradiction
     case isFalse h₅ =>
       unfold bind Monad.toBind Except.instMonad Except.bind at h₂
       simp at h₂
       split at h₂; simp at h₂
       case h_2 d1 tile _ =>
         clear d1
-        split at h₂; exact h₂.rec
+        split at h₂; contradiction
         exact Area.ParseLine_leaves_start_if_some  { width := previous.width, height := previous.height, start := previous.start, fields := previous.fields.push tile } (pos + 1) (line.drop 1) h₁ h₂ h₃
 termination_by previous.width - pos
 
@@ -473,7 +472,7 @@ private theorem Area.ParseLine_only_adds_to_fields (previous : Area.Raw) (pos : 
   split at h₂
   case isTrue => simp at h₂; rw[←h₂]
   case isFalse h₃ =>
-    split at h₂; exact h₂.rec
+    split at h₂; contradiction
     case isFalse h₄ =>
       unfold bind Monad.toBind Except.instMonad Except.bind at h₂
       simp at h₂
@@ -484,7 +483,7 @@ private theorem Area.ParseLine_only_adds_to_fields (previous : Area.Raw) (pos : 
         case' isFalse =>
           have h₅ := Area.ParseLine_only_adds_to_fields { width := previous.width, height := previous.height, start := previous.start, fields := previous.fields.push tile } (pos + 1) (line.drop 1) h₁ h₂ (Fin.castLE (by simp) index)
         case' isTrue =>
-          split at h₂; exact h₂.rec
+          split at h₂; contradiction
           have h₅ := Area.ParseLine_only_adds_to_fields { width := previous.width, height := previous.height, start := some ⟨previous.width * (previous.height - 1) + pos, _⟩, fields := previous.fields.push tile } (pos + 1) (line.drop 1) h₁ h₂ (Fin.castLE (by simp) index)
         all_goals
           simp at h₅
@@ -506,7 +505,7 @@ private theorem Area.ParseLine_start_at_tile (previous : Area.Raw) (pos : Nat) (
     case isFalse d2 =>
       clear d2
       split at h₄
-      case isTrue => exact h₄.rec
+      case isTrue => contradiction
       case isFalse h₅ =>
         unfold bind Monad.toBind Except.instMonad Except.bind at h₄
         simp at h₄
@@ -515,13 +514,13 @@ private theorem Area.ParseLine_start_at_tile (previous : Area.Raw) (pos : Nat) (
           clear d3
           split at h₄
           case isTrue h₆ =>
-            split at h₄; exact h₄.rec
+            split at h₄; contradiction
             case isFalse h₇ =>
               have h₈ : (previous.fields.push t)[previous.width * (previous.height - 1) + pos]! = t := by
                 have := Array.get_push_eq previous.fields t
                 simp[h₂, Array.getElem!_eq_getElem] at this
                 assumption
-              have : t = Tile.start := (beq_iff_eq t Tile.start).mp h₆
+              have : t = Tile.start := beq_iff_eq.mp h₆
               subst t
               have : previous.width * (previous.height - 1) + pos < previous.width * previous.height := by
                 have := Nat.mul_pred previous.width previous.height
@@ -1307,7 +1306,7 @@ macro "def_Area.ClosedPath.from" fn:ident ":" p1:term ", "  p2:term " : " p3:ter
     match hn₁ : n.steps, n.list_not_empty, n.connected with
     | [n1], _, _ =>
       have : e.steps.tail ≠ [] := match he₁ : e.steps, e.list_not_empty with
-      | _ :: e2 :: es, _ => by simp only [List.tail_cons, ne_eq, not_false_eq_true]
+      | _ :: e2 :: es, _ => by simp only [List.tail_cons, reduceCtorEq, ne_eq, not_false_eq_true]
       | e1 :: [], _ => by
         simp[he₁, hn₁] at *
         subst e1
@@ -1320,7 +1319,6 @@ macro "def_Area.ClosedPath.from" fn:ident ":" p1:term ", "  p2:term " : " p3:ter
           rw[hn.right] at he
           unfold Area.can_connect_to.is_succ at he
           split at he <;> simp[Fin.ext_iff] at he
-          exact absurd he.left (Nat.succ_ne_self _).symm
       match he₁ : e.steps, e.list_not_empty, this, e.connected with
       | e1 :: e2 :: es, _, _, ⟨hc₁ ,hc₂⟩ =>
         let b : area.PathsPart := {
