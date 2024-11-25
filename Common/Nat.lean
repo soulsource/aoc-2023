@@ -15,3 +15,8 @@ theorem two_d_coordinate_to_index_lt_size {x y w h: Nat} (h₁ : x < w) (h₂ : 
 theorem gt_of_sub_lt {a b c : Nat} (h₁ : a - b < a - c) : c < b := by omega
 
 theorem sub_lt_of_gt {a b c : Nat} (h₁ : b ≤ a) (h₂ : c < b) : a - b < a - c := by omega
+
+theorem lt_of_pred_lt {a b : Nat} (h₁ : a < b.pred) : (a < b) :=
+  match b with
+  | 0 => h₁
+  | _ + 1 => /-(Nat.pred_succ a).substr $-/ Nat.lt_succ_of_lt h₁

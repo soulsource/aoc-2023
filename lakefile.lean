@@ -15,6 +15,7 @@ lean_lib «Day9» where
 lean_lib «Day10» where
 lean_lib «Day11» where
 lean_lib «Day12» where
+lean_lib «Day13» where
 
 lean_lib «Common» where
 
