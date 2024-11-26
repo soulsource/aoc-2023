@@ -106,30 +106,37 @@ private theorem LookDirection.not_empty (lookDirection : LookDirection grid) : l
   unfold width height
   cases lookDirection <;> simp only[grid.not_empty, and_true]
 
-private def canBeMirror (lookDirection : LookDirection grid) (index : Fin (lookDirection.width - 1)) : Bool :=
-  areRowsMirrored ⟨lookDirection.height.pred, Nat.pred_lt $ Nat.ne_zero_iff_zero_lt.mpr lookDirection.not_empty.right⟩
+private def canBeMirror (smudgesNeeded : Nat) (lookDirection : LookDirection grid) (index : Fin (lookDirection.width - 1)) : Bool :=
+  areRowsMirrored 0 ⟨lookDirection.height.pred, Nat.pred_lt $ Nat.ne_zero_iff_zero_lt.mpr lookDirection.not_empty.right⟩
 where
-  areRowsMirrored : Fin (lookDirection.height) → Bool := λ r ↦
-    let isCurrentRowMirrored := isRowMirrored r 0
+  areRowsMirrored : Nat → Fin (lookDirection.height) → Bool := λ smudges r ↦
+    let (smudges, isCurrentRowMirrored) := isRowMirrored smudges r 0
     match r with
-    | ⟨0,_⟩ => isCurrentRowMirrored
+    | ⟨0,_⟩ => isCurrentRowMirrored && smudges == smudgesNeeded
     | ⟨rp + 1, h₁⟩ =>
-      isCurrentRowMirrored && areRowsMirrored ⟨rp, Nat.lt_of_succ_lt h₁⟩
-  isRowMirrored : Fin (lookDirection.height) → Nat → Bool := λr o ↦
+      isCurrentRowMirrored && areRowsMirrored smudges ⟨rp, Nat.lt_of_succ_lt h₁⟩
+  isRowMirrored : Nat →  Fin (lookDirection.height) → Nat → (Nat × Bool) := λsmudges r o ↦
     match h : getCoordinateOffset index o with
-    | none => true --always consider outside as mirrored.
+    | none => (smudges,true) --always consider outside as mirrored.
     | some (i₁, i₂) =>
       let c₁ : lookDirection.Coordinate := {x := i₁, y := r}
       let c₂ : lookDirection.Coordinate := {x := i₂, y := r}
-      lookDirection.get c₁ == lookDirection.get c₂ && isRowMirrored r (o+1)
-    termination_by _ o => lookDirection.width - (index + o + 1)
+      if lookDirection.get c₁ == lookDirection.get c₂ then
+        isRowMirrored smudges r (o+1)
+      else if smudges < smudgesNeeded then
+        isRowMirrored (smudges+1) r (o+1)
+      else
+        (smudges, false)
+    termination_by _ _ o => lookDirection.width - (index + o + 1)
     decreasing_by
+      all_goals
       unfold getCoordinateOffset at h
       split at h
       case isFalse => contradiction
       case isTrue h₁ => omega
 
-private def findMirrorPlanes (lookDirection : LookDirection grid) : List (Fin lookDirection.width.pred) :=
+
+private def findMirrorPlanes (smudgesNeeded : Nat) (lookDirection : LookDirection grid) : List (Fin lookDirection.width.pred) :=
   match h : lookDirection.width with
   | 0 => absurd h $ Nat.ne_zero_iff_zero_lt.mpr lookDirection.not_empty.left
   | 1 => []
@@ -139,7 +146,7 @@ private def findMirrorPlanes (lookDirection : LookDirection grid) : List (Fin lo
     h▸(findMirrorPlanes_aux ⟨wp,this⟩ [])
 where
   findMirrorPlanes_aux (r : Fin lookDirection.width.pred) (p : List (Fin lookDirection.width.pred)) : List (Fin lookDirection.width.pred) :=
-    let p := if canBeMirror lookDirection r then
+    let p := if canBeMirror smudgesNeeded lookDirection r then
       r :: p
     else
       p
@@ -147,13 +154,15 @@ where
     | ⟨0,_⟩ => p
     | ⟨rp+1,isLt⟩ => findMirrorPlanes_aux ⟨rp, Nat.lt_of_succ_lt isLt⟩ p
 
-def part1 (input : ParsedInput) : Nat :=
+private def score (smudgesNeeded : Nat) (input : ParsedInput) : Nat :=
   let horizontalScores := input.foldl (λs g ↦
-    (findMirrorPlanes (LookDirection.Horizontal : LookDirection g)).foldl (·+·.val+1) s) 0
+    (findMirrorPlanes smudgesNeeded (LookDirection.Horizontal : LookDirection g)).foldl (·+·.val+1) s) 0
   let verticalScores := input.foldl (λs g ↦
-    (findMirrorPlanes (LookDirection.Vertical : LookDirection g)).foldl (λa b ↦ a+(b.val+1)*100) s) 0
+    (findMirrorPlanes smudgesNeeded (LookDirection.Vertical : LookDirection g)).foldl (λa b ↦ a+(b.val+1)*100) s) 0
   horizontalScores + verticalScores
 
+def part1 : ParsedInput → Nat := score 0
+def part2 : ParsedInput → Nat := score 1
 
 ------------------------------------------------------------------------------------
 
@@ -163,6 +172,9 @@ instance : Parse ⟨13, by simp⟩ (ι := ParsedInput) where
 
 instance : Part ⟨13,_⟩ Parts.One (ι := ParsedInput) (ρ := Nat) where
   run := some ∘ part1
+
+instance : Part ⟨13,_⟩ Parts.Two (ι := ParsedInput) (ρ := Nat) where
+  run := some ∘ part2
 ------------------------------------------------------------------------------------
 
 private def testInput := "#.##..##.
@@ -209,8 +221,13 @@ private def testInput := "#.##..##.
   let t := l[0]
   let LD := (LookDirection t)
   let ld : LD := LookDirection.Horizontal
-  ToString.toString <$> findMirrorPlanes ld
+  ToString.toString <$> findMirrorPlanes 0 ld
 
 #eval match parse testInput with
 | Except.error _ => 0
 | Except.ok l => part1 l
+
+
+#eval match parse testInput with
+| Except.error _ => 0
+| Except.ok l => part2 l
