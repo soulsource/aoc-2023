@@ -20,3 +20,6 @@ theorem lt_of_pred_lt {a b : Nat} (h₁ : a < b.pred) : (a < b) :=
   match b with
   | 0 => h₁
   | _ + 1 => /-(Nat.pred_succ a).substr $-/ Nat.lt_succ_of_lt h₁
+
+theorem lt_imp_pred_lt {a b : Nat} (h₁ : a < b) : (a.pred < b) :=
+  Nat.lt_of_le_of_lt (Nat.pred_le a) h₁

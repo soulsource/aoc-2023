@@ -47,6 +47,17 @@ def RectangularGrid.Get {grid : RectangularGrid Element} (coordinate : grid.Coor
 instance : GetElem (RectangularGrid Element) (RectangularGrid.Coordinate grid) Element (λg _ ↦ g = grid) where
   getElem := λ g c h ↦ g.Get (h▸c)
 
+def RectangularGrid.set {grid : RectangularGrid Element} (coordinate : grid.Coordinate) (value : Element) : RectangularGrid Element :=
+  let index := (Fin.cast grid.size_valid.symm coordinate.toIndex)
+  {
+    grid with
+      elements := grid.elements.set index value
+      size_valid := (grid.elements.size_set index value).substr grid.size_valid
+  }
+
+theorem RectangularGrid.set_same_size {grid : RectangularGrid Element} (coordinate : grid.Coordinate) (value : Element) : (grid.set coordinate value).width = grid.width ∧ (grid.set coordinate value).height = grid.height :=
+  ⟨rfl,rfl⟩
+
 instance [ToString Element] : ToString (MaybeEmptyRectangularGrid Element) where
   toString := λe ↦ Id.run do
     let mut r := s!"Width: {e.width}, Height: {e.height}"
