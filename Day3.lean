@@ -1,6 +1,6 @@
 import «Common»
-import Lean.Data.HashSet
-import Lean.Data.HashMap
+import Std.Data.HashSet
+import Std.Data.HashMap
 
 namespace Day3
 structure Coordinate : Type 0 where

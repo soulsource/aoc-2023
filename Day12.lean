@@ -1,5 +1,5 @@
 import «Common»
-import Lean.Data.HashMap
+import Std.Data.HashMap
 
 namespace Day12
 

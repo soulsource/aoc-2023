@@ -1,6 +1,6 @@
 import «Common»
-import Lean.Data.HashMap
-import Lean.Data.HashSet
+import Std.Data.HashMap
+import Std.Data.HashSet
 
 namespace Day14
 
