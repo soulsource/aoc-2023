@@ -230,6 +230,14 @@ structure Part2Memory where
   recordedPanels : Std.HashMap ControlPanel Nat
 deriving Inhabited
 
+/-- Helper for runCycles. No point in keeping a memory once we have found a cycle. -/
+private def runCycles_bruteForce (cycleCount : Nat) (controlPanel : ControlPanel) : ControlPanel :=
+  match cycleCount with
+  | 0 => controlPanel
+  | p+1 =>
+    let r := cycle controlPanel
+    runCycles_bruteForce p r
+
 private def runCycles (cycleCount : Nat) (controlPanel : ControlPanel) : StateM (Part2Memory) ControlPanel :=
   match cycleCount with
   | 0 => pure controlPanel
@@ -245,15 +253,11 @@ private def runCycles (cycleCount : Nat) (controlPanel : ControlPanel) : StateM 
       if let some previousCount := maybePreviousCount then
         let period := previousCount - p
         let remaining := p % period
-        runCycles remaining r
+        pure $ runCycles_bruteForce remaining r
       else
         runCycles p r
     else
       runCycles p r
-termination_by cycleCount
-decreasing_by
-  exact Nat.lt_succ_of_le $ Nat.mod_le _ _
-  exact Nat.le_refl _
 
 def part2 (input : ControlPanel) : Nat :=
   let r := StateT.run' (runCycles 1000000000 input) Inhabited.default
