@@ -117,7 +117,7 @@ private def focussingPower (hashMap : HolidayAsciiStringHelperManualArrangementP
         (λ(totalPower, lensIndex) lens ↦ (totalPower + boxIndex * lensIndex * lens.snd.val, lensIndex + 1))
         (totalPower, 1)
       (totalPower, boxIndex + 1)
-      )
+    )
     (0,1)
 
 private instance : HolidayAsciiStringHelperAble Substring where
