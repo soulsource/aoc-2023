@@ -109,14 +109,16 @@ where
 
 /- Funny, by the way, that the riddle only needs insert/remove, but not find... -/
 
-private def focussingPower (hashMap : HolidayAsciiStringHelperManualArrangementProcedure Substring (Fin 10)) : Nat := Id.run do
-  let mut totalPower := 0
-  for h : boxIndex in [:hashMap.boxes.size] do
-    let mut lensIndex := 0
-    for lens in hashMap.boxes[boxIndex] do
-      lensIndex := lensIndex + 1
-      totalPower := totalPower + (1 + boxIndex) * lensIndex * lens.snd.val
-  totalPower
+private def focussingPower (hashMap : HolidayAsciiStringHelperManualArrangementProcedure Substring (Fin 10)) : Nat :=
+  Prod.fst $
+  hashMap.boxes.foldl (
+    λ(totalPower, boxIndex) box ↦
+      let totalPower := Prod.fst $ box.foldl
+        (λ(totalPower, lensIndex) lens ↦ (totalPower + boxIndex * lensIndex * lens.snd.val, lensIndex + 1))
+        (totalPower, 1)
+      (totalPower, boxIndex + 1)
+      )
+    (0,1)
 
 private instance : HolidayAsciiStringHelperAble Substring where
   holidayAsciiStringHelper := holidayAsciiStringHelper 0
