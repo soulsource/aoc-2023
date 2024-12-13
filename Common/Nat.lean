@@ -23,3 +23,6 @@ theorem lt_of_pred_lt {a b : Nat} (h₁ : a < b.pred) : (a < b) :=
 
 theorem lt_imp_pred_lt {a b : Nat} (h₁ : a < b) : (a.pred < b) :=
   Nat.lt_of_le_of_lt (Nat.pred_le a) h₁
+
+theorem le_of_add_le {a b c d : Nat} (h₁ : a ≤ b + c) (h₂ : c ≤ d) : a ≤ b + d :=
+  Nat.le_trans h₁ (Nat.add_le_add_left h₂ b)

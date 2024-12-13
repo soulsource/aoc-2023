@@ -21,6 +21,12 @@ structure RectangularGrid.Coordinate (grid : RectangularGrid Element) where
   x : Fin grid.width
   y : Fin grid.height
 
+instance {grid : RectangularGrid Element} : BEq grid.Coordinate where
+  beq := λa b ↦ a.x == b.x && a.y == b.y
+
+instance {grid : RectangularGrid Element} : Hashable grid.Coordinate where
+  hash := λa ↦ Hashable.hash (a.x, a.y)
+
 instance : ToString (RectangularGrid.Coordinate grid) where
   toString := λx ↦ s!"x: {x.x}/{grid.width}, y : {x.y}/{grid.height}"
 

@@ -9,3 +9,4 @@ import Common.NonEmptyList
 import Common.Parsing
 import Common.Nat
 import Common.Substring
+import Common.BitVec
