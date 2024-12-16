@@ -348,12 +348,41 @@ def part1 (table : OpticsTable) : Nat :=
 
 
 ------------------------------------------------------------------------------------
+
+def part2 (table : OpticsTable) : Nat :=
+  let run := curry $ SeenExitDirections.countEnergizedTiles ∘ table.followPath (SeenExitDirections.empty table) ∘ ([·])
+  let runFromTop := run EnterDirection.FromTop
+  let runFromLeft := run EnterDirection.FromLeft
+  let runFromBottom := run EnterDirection.FromBottom
+  let runFromRight := run EnterDirection.FromRight
+  -- this would be way easier with for-loops, but I want to use lists for fun. Also, check my List.mapWithProof function.
+  let topRow : List table.Coordinate := (List.range table.width).mapWithProof λcol hc ↦ {x := ⟨col,List.mem_range.mp hc⟩, y := ⟨0,table.not_empty.right⟩ : table.Coordinate}
+  let bottomRow : List table.Coordinate := (List.range table.width).mapWithProof λcol hc ↦ {x := ⟨col,List.mem_range.mp hc⟩, y := ⟨table.height.pred,Nat.pred_lt_of_lt table.not_empty.right⟩ : table.Coordinate}
+  let leftColumn : List table.Coordinate := (List.range table.height).mapWithProof λrow hr ↦ {x := ⟨0,table.not_empty.left⟩, y := ⟨row,List.mem_range.mp hr⟩ : table.Coordinate}
+  let rightColumn : List table.Coordinate := (List.range table.height).mapWithProof λrow hr ↦ {x := ⟨table.width.pred,Nat.pred_lt_of_lt table.not_empty.left⟩, y := ⟨row,List.mem_range.mp hr⟩ : table.Coordinate}
+  let topScores := runFromTop <$> topRow
+  let bottomScores := runFromBottom <$> bottomRow
+  let leftScores := runFromLeft <$> leftColumn
+  let rightScores := runFromRight <$> rightColumn
+  have h₁ := λ{c : Nat} (h₁ : c > 0) (f : (n : Nat) → (n ∈ List.range c) → table.Coordinate) (g : table.Coordinate → Nat) ↦ (List.map_ne_nil (f := g)).mp $ ((List.mapWithProof_neNilIffNeNil (f := f)).mp (List.range_ne_nil.mpr $ Nat.pos_iff_ne_zero.mp h₁))
+  [
+    topScores.max $ h₁ table.not_empty.left _ _,
+    bottomScores.max $ h₁ table.not_empty.left _ _,
+    leftScores.max $ h₁ table.not_empty.right _ _,
+    rightScores.max $ h₁ table.not_empty.right _ _
+  ].max (List.cons_ne_nil _ _)
+
+------------------------------------------------------------------------------------
+
 open DayPart
 instance : Parse ⟨16, by simp⟩ (ι := OpticsTable) where
   parse := (Except.mapError ToString.toString) ∘ parse
 
 instance : Part ⟨16,_⟩ Parts.One (ι := OpticsTable) (ρ := Nat) where
   run := λc ↦ some (part1 c)
+
+instance : Part ⟨16,_⟩ Parts.Two (ι := OpticsTable) (ρ := Nat) where
+  run := λc ↦ some (part2 c)
 
 ------------------------------------------------------------------------------------
 
@@ -379,3 +408,7 @@ private def testInput := r".|...\....
 #eval match parse testInput with
 | Except.error e => s!"Error: {e}"
 | Except.ok ot => ToString.toString $ part1 ot
+
+#eval match parse testInput with
+| Except.error e => s!"Error: {e}"
+| Except.ok ot => ToString.toString $ part2 ot
