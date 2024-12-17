@@ -1007,7 +1007,6 @@ private def removePathsMet {area : Area} : (List $ Area.PathHead area) → (List
 termination_by x => x.length
 decreasing_by
   all_goals
-    simp_wf
     exact Nat.lt_succ.mpr $ List.listFilterSmallerOrEqualList _ _
 
 

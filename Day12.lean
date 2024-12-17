@@ -72,7 +72,6 @@ where
       | .ok v => parseLeftBlock (s.drop 1) $ v :: p
   termination_by s => s.bsize
   decreasing_by
-    simp_wf
     rename_i h₁
     apply Substring.drop_bsize_dec _ _ h₁ Nat.one_ne_zero
   parseMaskChar : Char → Except ParsingError SpringState := λ

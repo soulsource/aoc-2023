@@ -103,7 +103,6 @@ protected def RectangularGrid.parseSingleLine (parseCharacter : Char → Except 
       RectangularGrid.parseSingleLine parseCharacter (alreadyParsed.push element) (remainingLine.drop 1)
 termination_by remainingLine.bsize
 decreasing_by
-  simp_wf
   simp only [Substring.isEmpty, Substring.bsize, Nat.sub_eq, beq_iff_eq] at _h₁
   simp only [Substring.drop, Substring.bsize, Substring.nextn, Substring.next, String.Pos.add_byteIdx, Nat.sub_eq]
   split
