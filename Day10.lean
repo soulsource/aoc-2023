@@ -517,7 +517,7 @@ private theorem Area.ParseLine_start_at_tile (previous : Area.Raw) (pos : Nat) (
             split at h₄; contradiction
             case isFalse h₇ =>
               have h₈ : (previous.fields.push t)[previous.width * (previous.height - 1) + pos]! = t := by
-                have := Array.get_push_eq previous.fields t
+                have := Array.getElem_push_eq previous.fields t
                 simp[h₂, Array.getElem!_eq_getElem] at this
                 assumption
               have : t = Tile.start := beq_iff_eq.mp h₆
@@ -1018,8 +1018,8 @@ private def noSolution {area : Area} : (List $ Area.PathHead area) → Bool
 
 section ListMonad
 local instance : Monad List where
-  bind := List.bind
-  pure := List.pure
+  bind := List.flatMap
+  pure := List.singleton
 
 def part1 (area : Area) : List Nat := do
   let mut paths : List (Area.PathHead area) := area.pathStartsList
@@ -1470,8 +1470,8 @@ private def PipeAtCoordinate.totalAndTransitiveLe (area : Area) : BinaryHeap.Tot
 section ListMonad
 -- We can do this here without perf issues. The list in question will never have more than 2 elements.
 local instance : Monad List where
-  pure := List.pure
-  bind := List.bind
+  pure := List.singleton
+  bind := List.flatMap
 
 private inductive WestEastFoldState (area : Area)
 | inside : Coordinate area.width area.height → WestEastFoldState area

@@ -290,7 +290,7 @@ private def findFirstCommonCyclingGoal (waypoints : Std.HashMap WaypointId Conne
   let cyclingGoals := startPositions.map $ findCyclingGoalsInPath waypoints instructions possibleStarts
   let combinedGoals : List CyclingGoal := match cyclingGoals with
     | [] => []
-    | g :: gs => flip gs.foldl g λc n ↦ c.bind λ cc ↦ n.filterMap λ nn ↦ nn.combine cc
+    | g :: gs => flip gs.foldl g λc n ↦ c.flatMap λ cc ↦ n.filterMap λ nn ↦ nn.combine cc
   let cyclingGoalStarts := combinedGoals.map CyclingGoal.start
   cyclingGoalStarts.min?
 

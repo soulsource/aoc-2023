@@ -103,7 +103,7 @@ def part2 (schematic : Schematic) : Nat :=
   -- because here we need quick lookup for the numbers, not the parts.
   open Std(HashMap) in
   let numberCoordinates : HashMap Coordinate PartNumber :=
-    HashMap.ofList $ schematic.numbers.bind $ λ pn ↦ pn.positions.map (·, pn)
+    HashMap.ofList $ schematic.numbers.flatMap $ λ pn ↦ pn.positions.map (·, pn)
   let gearSymbols := schematic.parts.filter (Part.symbol · == '*')
   -- but the symbols aren't enough, they need to be adjacent to **exactly** 2 numbers
   let numbersNextGearSymbols := List.eraseReps <$> gearSymbols.map λgs ↦

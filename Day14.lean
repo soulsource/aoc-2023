@@ -211,11 +211,11 @@ private def compareControlPanels (a b : ControlPanel) : Bool :=
 
 /-- (Bad) Hash-Function for ControlPanel. It's good enough for this riddle, but that's about it. -/
 private def hashControlPanel (p : ControlPanel) : UInt64 := Id.run do
-  let mut hash : UInt64 := mixHash ⟨Fin.ofNat' _ p.width⟩ ⟨Fin.ofNat' _ p.height⟩
+  let mut hash : UInt64 := mixHash ⟨Fin.ofNat' UInt64.size p.width⟩ ⟨Fin.ofNat' UInt64.size p.height⟩
   for hi : index in [:p.elements.size] do
     match p.elements[index] with
-    | Tile.Round => hash := mixHash hash ⟨Fin.ofNat' _ index⟩
-    | Tile.Cube => hash := mixHash hash ⟨Fin.ofNat' _ (index + p.elements.size)⟩
+    | Tile.Round => hash := mixHash hash ⟨Fin.ofNat' UInt64.size index⟩
+    | Tile.Cube => hash := mixHash hash ⟨Fin.ofNat' UInt64.size (index + p.elements.size)⟩
     | Tile.Space => continue
   hash
 
