@@ -10,3 +10,6 @@ import Common.Parsing
 import Common.Nat
 import Common.Substring
 import Common.BitVec
+import Common.Finite
+import Common.Countable
+import Common.HashSet

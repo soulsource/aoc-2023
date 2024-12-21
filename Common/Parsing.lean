@@ -24,6 +24,18 @@ structure RectangularGrid.Coordinate (grid : RectangularGrid Element) where
 instance {grid : RectangularGrid Element} : BEq grid.Coordinate where
   beq := λa b ↦ a.x == b.x && a.y == b.y
 
+instance {grid : RectangularGrid Element} : LawfulBEq grid.Coordinate where
+  rfl := λ{a} ↦ by
+    unfold BEq.beq instBEqCoordinate
+    simp only [beq_self_eq_true, Bool.and_self]
+  eq_of_beq := λ{a b} h₁ ↦ by
+    unfold BEq.beq instBEqCoordinate at h₁
+    simp only [Bool.and_eq_true, beq_iff_eq] at h₁
+    cases a
+    cases b
+    simp at h₁ ⊢
+    assumption
+
 instance {grid : RectangularGrid Element} : Hashable grid.Coordinate where
   hash := λa ↦ Hashable.hash (a.x, a.y)
 
