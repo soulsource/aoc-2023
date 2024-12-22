@@ -13,3 +13,4 @@ import Common.BitVec
 import Common.Finite
 import Common.Countable
 import Common.HashSet
+import Common.Function

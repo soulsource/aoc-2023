@@ -1,4 +1,5 @@
 import Std.Data.HashSet
+import Common.Nat
 
 class Finite (α : Type u) where
   cardinality : Nat
@@ -22,6 +23,68 @@ theorem Finite.injective {α : Type u} [Finite α] {a b : α} : enumerate a = en
   have h₅ := Function.comp_apply.subst (h₄ a).symm
   have h₆ := Function.comp_apply.subst (h₄ b).symm
   h₅.substr $ h₆.substr h₃
+
+def Finite.tuple_enumerate {α : Type u} [Finite α] {β : Type v} [Finite β] (x : α × β) : Fin ((Finite.cardinality α) * (Finite.cardinality β)) :=
+  let (a, b) := x
+  let idxa := (Finite.enumerate a)
+  let idxb := (Finite.enumerate b)
+  let idx := idxa.val + (Finite.cardinality α) * idxb.val
+  have h : idx < (Finite.cardinality α) * (Finite.cardinality β) :=
+    Nat.two_d_coordinate_to_index_lt_size idxa.isLt idxb.isLt
+  ⟨idx,h⟩
+
+def Finite.tuple_nth {α : Type u} [Finite α] {β : Type v} [Finite β] (idx : Fin ((Finite.cardinality α) * (Finite.cardinality β))) :=
+  let idxav := idx % (Finite.cardinality α)
+  let idxbv := idx / (Finite.cardinality α)
+  have h₁ : Finite.cardinality α > 0 :=
+    if h : 0 = Finite.cardinality α then
+      have : cardinality α * cardinality β = 0 := h.subst (motive := λx↦x*cardinality β = 0) $ Nat.zero_mul (cardinality β)
+      (Fin.cast this idx).elim0
+    else
+      Nat.pos_of_ne_zero (Ne.symm h)
+  let idxa : Fin (Finite.cardinality α) := ⟨idxav, Nat.mod_lt _ h₁⟩
+  let idxb : Fin (Finite.cardinality β):= ⟨idxbv, Nat.div_lt_of_lt_mul idx.isLt⟩
+  (Finite.nth idxa, Finite.nth idxb)
+
+theorem Finite.tuple_nth_inverse_enumerate {α : Type u} [Finite α] {β : Type v} [Finite β] : Finite.tuple_nth (α := α) (β := β) ∘ Finite.tuple_enumerate (α := α) (β := β) = id := by
+  unfold Finite.tuple_enumerate Finite.tuple_nth
+  funext
+  simp
+  congr
+  case h.e_fst x =>
+    simp[Nat.mod_eq_of_lt]
+    rw[←Function.comp_apply (f := Finite.nth) (x := x.fst), Finite.nth_inverse_enumerate]
+    rfl
+  case h.e_snd x =>
+    have h₁ : (↑(Finite.enumerate x.fst) + (Finite.cardinality α) * ↑(Finite.enumerate x.snd)) / Finite.cardinality α = ↑(Finite.enumerate x.snd) := by
+      rw[Nat.add_mul_div_left]
+      simp[Nat.div_eq_of_lt]
+      exact Nat.zero_lt_of_lt (Finite.enumerate x.fst).isLt
+    simp[h₁]
+    rw[←Function.comp_apply (f := Finite.nth) (x := x.snd), Finite.nth_inverse_enumerate]
+    rfl
+
+theorem Finite.tuple_enumerate_inerse_nth {α : Type u} [Finite α] {β : Type v} [Finite β] : Finite.tuple_enumerate (α := α) (β := β) ∘ Finite.tuple_nth (α := α) (β := β) = id := by
+  funext
+  unfold Finite.tuple_enumerate Finite.tuple_nth
+  simp
+  rename_i x
+  rw[Fin.eq_mk_iff_val_eq]
+  simp
+  rw[←Function.comp_apply (f := Finite.enumerate), Finite.enumerate_inverse_nth]
+  rw[←Function.comp_apply (f := Finite.enumerate), Finite.enumerate_inverse_nth]
+  simp[Nat.mod_add_div]
+
+instance {α : Type u} [Finite α] {β : Type v} [Finite β] : Finite (Prod α β) where
+  cardinality := (Finite.cardinality α) * (Finite.cardinality β)
+  enumerate := Finite.tuple_enumerate
+  nth := Finite.tuple_nth
+  enumerate_inverse_nth := Finite.tuple_enumerate_inerse_nth
+  nth_inverse_enumerate := Finite.tuple_nth_inverse_enumerate
+
+theorem Finite.forall_nth {α : Type u} [Finite α] (p : α → Prop) (h₁ : ∀(o : Fin (Finite.cardinality α)), p (Finite.nth o)) : ∀(a : α), p a := λa↦
+  have : p ((nth ∘ enumerate) a) := Function.comp_apply.substr $ h₁ (Finite.enumerate a)
+  Finite.nth_inverse_enumerate.subst (motive := λx ↦ p (x a)) this
 
 def Finite.set (α : Type u) [Finite α] [BEq α] [Hashable α] : Std.HashSet α :=
   match h: (Finite.cardinality α) with
@@ -65,15 +128,15 @@ protected theorem Finite.set_worker_contains (α : Type u) [Finite α] [BEq α] 
     exact hi (oldSet.insert (nth ⟨↑(enumerate a) + (p + 1), h₁⟩)) this
 
 theorem Finite.set_contains (α : Type u) [Finite α] [BEq α] [Hashable α] [LawfulBEq α] : ∀ (a : α), (Finite.set α).contains a := λa ↦ by
-    unfold set
-    split
-    case h_1 h => exact (Fin.cast h $ Finite.enumerate a).elim0
-    case h_2 l h =>
-      let o := l - enumerate a
-      have h₁ : (Finite.enumerate a).val + o = l := by omega
-      have h₂ := Finite.set_worker_contains _ a Std.HashSet.empty o (by omega)
-      simp[h₁] at h₂
-      assumption
+  unfold set
+  split
+  case h_1 h => exact (Fin.cast h $ Finite.enumerate a).elim0
+  case h_2 l h =>
+    let o := l - enumerate a
+    have h₁ : (Finite.enumerate a).val + o = l := by omega
+    have h₂ := Finite.set_worker_contains _ a Std.HashSet.empty o (by omega)
+    simp[h₁] at h₂
+    assumption
 
 protected theorem Finite.set_worker_size (α : Type u) [Finite α] [BEq α] [Hashable α] [LawfulBEq α]
 : ∀(set : Std.HashSet α) (n : Fin (Finite.cardinality α)) (_ : ∀(x : Fin (Finite.cardinality α)) (_ : x ≤ n),

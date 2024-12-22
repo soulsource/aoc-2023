@@ -2,6 +2,7 @@
 
 import Common.List
 import Common.Nat
+import Common.Finite
 
 namespace Parsing
 
@@ -58,6 +59,23 @@ def RectangularGrid.Coordinate.ofIndex {grid : RectangularGrid Element} (index :
 
 theorem RectangularGrid.Coordinate.toIndex_inv_fromIndex {grid : RectangularGrid Element} (index : Fin (grid.width * grid.height)) : RectangularGrid.Coordinate.toIndex (RectangularGrid.Coordinate.ofIndex index) = index := by
   simp only [RectangularGrid.Coordinate.toIndex, RectangularGrid.Coordinate.ofIndex, Nat.mod_add_div, Fin.eta]
+
+theorem RectangularGrid.Coordinate.fromIndex_inv_toIndex {grid : RectangularGrid Element} (c : grid.Coordinate) : RectangularGrid.Coordinate.ofIndex (RectangularGrid.Coordinate.toIndex c) = c := by
+  unfold RectangularGrid.Coordinate.toIndex RectangularGrid.Coordinate.ofIndex
+  simp only [Nat.add_mul_mod_self_left]
+  congr
+  case e_x.e_val => simp only [Fin.is_lt, Nat.mod_eq_of_lt]
+  case e_y.e_val =>
+    rw[Nat.add_mul_div_left]
+    simp[Nat.div_eq_of_lt]
+    exact grid.not_empty.left
+
+instance {grid : RectangularGrid Element} : Finite grid.Coordinate where
+  cardinality := grid.width * grid.height
+  enumerate := RectangularGrid.Coordinate.toIndex
+  nth := RectangularGrid.Coordinate.ofIndex
+  enumerate_inverse_nth := funext RectangularGrid.Coordinate.toIndex_inv_fromIndex
+  nth_inverse_enumerate := funext RectangularGrid.Coordinate.fromIndex_inv_toIndex
 
 def RectangularGrid.Get {grid : RectangularGrid Element} (coordinate : grid.Coordinate) : Element :=
   grid.elements[coordinate.toIndex]'(grid.size_valid.substr coordinate.toIndex.isLt)

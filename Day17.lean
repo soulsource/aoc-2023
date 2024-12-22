@@ -46,6 +46,21 @@ instance : LawfulBEq Direction where
   rfl := λ{x} ↦ by cases x <;> rfl
   eq_of_beq := λ {a b} ↦ by cases a <;> cases b <;> simp <;> rfl
 
+instance : Finite Direction where
+  cardinality := 4
+  enumerate := λ
+  | .Up => 0
+  | .Right => 1
+  | .Down => 2
+  | .Left => 3
+  nth := λ
+  | 0 => .Up
+  | 1 => .Right
+  | 2 => .Down
+  | 3 => .Left
+  nth_inverse_enumerate := by funext x; cases x <;> rfl
+  enumerate_inverse_nth := by funext x; revert x; decide
+
 private inductive StepsInDirection
 | One
 | Two
@@ -55,6 +70,19 @@ deriving BEq, Hashable
 instance : LawfulBEq StepsInDirection where
   rfl := λ{x} ↦ by cases x <;> rfl
   eq_of_beq := λ {a b} ↦ by cases a <;> cases b <;> simp <;> rfl
+
+instance : Finite StepsInDirection where
+  cardinality := 3
+  enumerate := λ
+  | .One => 0
+  | .Two => 1
+  | .Three => 2
+  nth := λ
+  | 0 => .One
+  | 1 => .Two
+  | 2 => .Three
+  nth_inverse_enumerate := by funext x; cases x <;> rfl
+  enumerate_inverse_nth := by funext x; revert x; decide
 
 private def StepsInDirection.next (s : StepsInDirection) (h₁ : s ≠ .Three) : StepsInDirection :=
   match s with
@@ -284,6 +312,30 @@ instance {heatLossMap : HeatLossMap} : LawfulBEq (ClosedSetEntry heatLossMap) wh
     simp! at h₁
     simp[h₁]
 
+private def ClosedSetEntry.toTuple {heatLossMap : HeatLossMap} : (ClosedSetEntry heatLossMap) → (heatLossMap.Coordinate × Direction × StepsInDirection)
+| {coordinate, direction, steps} => (coordinate, direction, steps)
+
+private def ClosedSetEntry.ofTuple {heatLossMap : HeatLossMap} : (heatLossMap.Coordinate × Direction × StepsInDirection) → (ClosedSetEntry heatLossMap)
+| (coordinate, direction, steps) => {coordinate, direction, steps}
+
+private theorem ClosedSetEntry.toTuple_inv_ofTuple {heatLossMap : HeatLossMap} : (ClosedSetEntry.toTuple (heatLossMap := heatLossMap)) ∘ ClosedSetEntry.ofTuple = id := rfl
+private theorem ClosedSetEntry.ofTuple_inv_toTuple {heatLossMap : HeatLossMap} : (ClosedSetEntry.ofTuple (heatLossMap := heatLossMap)) ∘ ClosedSetEntry.toTuple = id := rfl
+
+instance {heatLossMap : HeatLossMap} : Finite (ClosedSetEntry heatLossMap) where
+  cardinality := Finite.cardinality (heatLossMap.Coordinate × Direction × StepsInDirection)
+  enumerate := Finite.enumerate ∘ ClosedSetEntry.toTuple
+  nth := ClosedSetEntry.ofTuple ∘ Finite.nth
+  enumerate_inverse_nth := by
+    funext x
+    rewrite[Function.comp_assoc]
+    rewrite (occs := .pos [2]) [←Function.comp_assoc]
+    simp only[ClosedSetEntry.toTuple_inv_ofTuple, Function.id_comp, Finite.enumerate_inverse_nth]
+  nth_inverse_enumerate := by
+    funext x
+    rewrite[Function.comp_assoc]
+    rewrite (occs := .pos [2]) [←Function.comp_assoc]
+    simp only[Finite.nth_inverse_enumerate, Function.id_comp, ClosedSetEntry.ofTuple_inv_toTuple]
+
 instance {heatLossMap : HeatLossMap} : Coe (PathNode heatLossMap) (ClosedSetEntry heatLossMap) where
   coe := λ{coordinate, currentDirection, takenSteps, ..} ↦ {coordinate, direction := currentDirection, steps := takenSteps}
 
@@ -314,7 +366,7 @@ private theorem OpenSet.findFirstNotInClosedSet_not_in_closed_set {heatLossMap :
     subst result
     assumption
 
-private partial def HeatLossMap.findPath {heatLossMap : HeatLossMap} {n : Nat} (openSet : OpenSet heatLossMap n) (closedSet : ClosedSet heatLossMap) : Option Nat :=
+private def HeatLossMap.findPath {heatLossMap : HeatLossMap} {n : Nat} (openSet : OpenSet heatLossMap n) (closedSet : ClosedSet heatLossMap) : Option Nat :=
   match h₁ : openSet.findFirstNotInClosedSet closedSet with
   | none => none
   | some ⟨_,(node, openSet)⟩ =>
@@ -325,17 +377,17 @@ private partial def HeatLossMap.findPath {heatLossMap : HeatLossMap} {n : Nat} (
       let newClosedSet := closedSet.insert node
       let openSet := openSet.pushList neighbours
       findPath openSet newClosedSet
---termination_by (ClosedSet.full heatLossMap).size - closedSet.size
---decreasing_by
---  have h₃ := Std.HashSet.size_insert (m := closedSet) (k := { coordinate := node.coordinate, direction := node.currentDirection, steps := node.takenSteps })
---  split at h₃
---  case isTrue =>
---    have := OpenSet.findFirstNotInClosedSet_not_in_closed_set _ _ h₁
---    contradiction
---  case isFalse oldOpenSet h₂ =>
---    rw[h₃]
---    have : closedSet.size < (ClosedSet.full heatLossMap).size := sorry --contradiction, h₂, ClosedSet.full_is_full, Std.HashSet.size_insert
---    omega
+termination_by (Finite.cardinality (ClosedSetEntry heatLossMap)) - closedSet.size
+decreasing_by
+  have h₃ := Std.HashSet.size_insert (m := closedSet) (k := { coordinate := node.coordinate, direction := node.currentDirection, steps := node.takenSteps })
+  split at h₃
+  case isTrue =>
+    have := OpenSet.findFirstNotInClosedSet_not_in_closed_set _ _ h₁
+    contradiction
+  case isFalse h₂ =>
+    rw[h₃]
+    have : closedSet.size < (Finite.cardinality (ClosedSetEntry heatLossMap)) := Std.HashSet.size_lt_finite_cardinality_of_not_mem closedSet ⟨_,h₂⟩
+    omega
 
 
 
