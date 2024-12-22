@@ -389,6 +389,18 @@ decreasing_by
     have : closedSet.size < (Finite.cardinality (ClosedSetEntry heatLossMap)) := Std.HashSet.size_lt_finite_cardinality_of_not_mem closedSet ⟨_,h₂⟩
     omega
 
+def part1 (heatLossMap : HeatLossMap) : Option Nat :=
+  heatLossMap.findPath (OpenSet.start heatLossMap) Std.HashSet.empty
+
+------------------------------------------------------------------------------------
+
+open DayPart
+instance : Parse ⟨17, by simp⟩ (ι := HeatLossMap) where
+  parse := (Except.mapError ToString.toString) ∘ parse
+
+instance : Part ⟨17,_⟩ Parts.One (ι := HeatLossMap) (ρ := Nat) where
+  run := part1
+
 ------------------------------------------------------------------------------------
 
 private def testData := "2413432311323

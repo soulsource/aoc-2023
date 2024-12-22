@@ -15,6 +15,7 @@ import «Day13»
 import «Day14»
 import «Day15»
 import «Day16»
+import «Day17»
 
 open DayPart
 
@@ -59,6 +60,7 @@ def try_run_day_part (day : Days) (part : Parts) (data : String) : IO String :=
   | ⟨15,_⟩, Parts.Two => try_run_day_part_impl ⟨15,_⟩ Parts.Two data
   | ⟨16,_⟩, Parts.One => try_run_day_part_impl ⟨16,_⟩ Parts.One data
   | ⟨16,_⟩, Parts.Two => try_run_day_part_impl ⟨16,_⟩ Parts.Two data
+  | ⟨17,_⟩, Parts.One => try_run_day_part_impl ⟨17,_⟩ Parts.One data
   | _, _ => throw $ IO.userError "The requested combination of day/part has not been implemented yet."
 
 def main (parameters : List String): IO Unit := do
