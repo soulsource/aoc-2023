@@ -389,8 +389,6 @@ decreasing_by
     have : closedSet.size < (Finite.cardinality (ClosedSetEntry heatLossMap)) := Std.HashSet.size_lt_finite_cardinality_of_not_mem closedSet ⟨_,h₂⟩
     omega
 
-
-
 ------------------------------------------------------------------------------------
 
 private def testData := "2413432311323
