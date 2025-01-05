@@ -33,3 +33,6 @@ lean_exe «aoc-2023» where
 
 require BinaryHeap from git
   "https://github.com/soulsource/BinaryHeap"@"376e4bf573f754aa7cb8c5d6ed652f1efece3050"
+
+require «lean-astar» from git
+  "https://github.com/soulsource/lean-astar"@"3514e38cf48b611abc808b7de4c13862d3a4ede0"

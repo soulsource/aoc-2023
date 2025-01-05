@@ -2,7 +2,7 @@
 
 import Common.List
 import Common.Nat
-import Common.Finite
+import LeanAStar.Finite
 
 namespace Parsing
 
