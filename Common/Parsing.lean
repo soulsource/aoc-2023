@@ -88,7 +88,7 @@ def RectangularGrid.set {grid : RectangularGrid Element} (coordinate : grid.Coor
   {
     grid with
       elements := grid.elements.set index value
-      size_valid := (grid.elements.size_set index value).substr grid.size_valid
+      size_valid := (grid.elements.size_set index value index.isLt).substr grid.size_valid
   }
 
 theorem RectangularGrid.set_same_size {grid : RectangularGrid Element} (coordinate : grid.Coordinate) (value : Element) : (grid.set coordinate value).width = grid.width ∧ (grid.set coordinate value).height = grid.height :=

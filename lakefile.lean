@@ -32,7 +32,7 @@ lean_exe «aoc-2023» where
   supportInterpreter := true
 
 require BinaryHeap from git
-  "https://github.com/soulsource/BinaryHeap"@"376e4bf573f754aa7cb8c5d6ed652f1efece3050"
+  "https://github.com/soulsource/BinaryHeap"@"fe30e1dc0a0070452edce74331aa3df21a6b8f7c"
 
 require «lean-astar» from git
-  "https://github.com/soulsource/lean-astar"@"3514e38cf48b611abc808b7de4c13862d3a4ede0"
+  "https://github.com/soulsource/lean-astar"@"4cc7ae8a6653402e091d246ed746a0ed45b099dc"

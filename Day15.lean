@@ -76,7 +76,7 @@ private def HolidayAsciiStringHelperManualArrangementProcedure.insert {α β : T
   let box := updateOrAppend box []
   {
     boxes := old.boxes.set index box
-    valid := (Array.size_set old.boxes index box).substr old.valid
+    valid := (Array.size_set old.boxes index box index.isLt).substr old.valid
   }
 where
   updateOrAppend (box : List (α × β)) (accumulator : List (α × β)) : List (α × β) :=
@@ -95,7 +95,7 @@ private def HolidayAsciiStringHelperManualArrangementProcedure.remove {α β : T
   let box := tryRemove box []
   {
     boxes := old.boxes.set index box
-    valid := (Array.size_set old.boxes index box).substr old.valid
+    valid := (Array.size_set old.boxes index box index.isLt).substr old.valid
   }
 where
   tryRemove (box : List (α × β)) (accumulator : List (α × β)) : List (α × β) :=

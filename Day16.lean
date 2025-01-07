@@ -226,7 +226,7 @@ private def SeenExitDirections.countExitDirections {table : OpticsTable} (seenDi
   let c := seenDirections.elements.foldl (λn e ↦ n + e.countDirection.val) 0
   have h₁ : c ≤ 4 * seenDirections.width * seenDirections.height := by
     have : c = seenDirections.elements.foldl (λn e ↦ n + e.countDirection.val) 0 := (rfl : c = seenDirections.elements.foldl (λn e ↦ n + e.countDirection.val) 0)
-    rw[this, Array.foldl_eq_foldl_toList]
+    rw[this, ←Array.foldl_toList]
     have : seenDirections.elements.toList.length = seenDirections.elements.size :=  Array.length_toList
     rw[seenDirections.size_valid] at this
     rw[Nat.mul_assoc,←this]
@@ -266,7 +266,7 @@ private theorem SeenExitDirections.countExitDirections_increasesWhenSet {table :
   simp at h₁ ⊢
   unfold Parsing.RectangularGrid.Coordinate.toIndex at h₁ ⊢
   unfold Array.set
-  simp[Array.foldl_eq_foldl_toList] at h₁ ⊢
+  simp[←Array.foldl_toList] at h₁ ⊢
   rw[Array.getElem_eq_getElem_toList] at h₁ ⊢
   apply countExitDirections_increasesWhenSet_Aux
   assumption
