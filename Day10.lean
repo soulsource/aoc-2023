@@ -218,7 +218,7 @@ private def Area.parseLines (previous : Area.Raw) (input : List String) : Except
       height := previous.height + 1
       start := Fin.castLE (Nat.mul_le_succ_right _ _) <$> previous.start
     }
-    let (parsed_width, parsed_line) ← Area.parseLine current 0 l.toSubstring (by simp only [gt_iff_lt, Nat.zero_lt_succ])
+    let (parsed_width, parsed_line) ← Area.parseLine current 0 l.toSubstring (Nat.succ_pos _)
     if parsed_width = previous.width then
       Area.parseLines parsed_line ls
     else
@@ -678,6 +678,9 @@ private def Area.parse (input : String) : Except Area.ParseError Area :=
       have as := Area.ParseRaw_array_size input (Except.isOk_exists.mpr ⟨vraw, he⟩)
       have as : vraw.fields.size = vraw.width * vraw.height := (Except.get_unfold' he except_ok).subst (motive := λx↦ x.fields.size = x.width * x.height) as
       have sp := ParseRaw_start_position input (Except.isOk_exists.mpr ⟨vraw, he⟩) is_some
+      have hv: (Day10.Except.get (Day10.Area.parseRaw input) except_ok) = vraw := by
+        rw[Except.get_unfold']
+        exact he
       have sp : vraw.fields[(Coordinate.fromIndex s).toIndex] = Tile.start := by
         simp[Except.get_unfold' he except_ok] at sp
         simp[Coordinate.toIndex_inv_fromIndex]
@@ -686,13 +689,10 @@ private def Area.parse (input : String) : Except Area.ParseError Area :=
           unfold Option.get
           split
           rename_i s₂ _ h₁ _
-          have : (Day10.Except.get (Day10.Area.parseRaw input) except_ok) = vraw := by
-            rw[Except.get_unfold']
-            exact he
-          subst this
+          subst hv
           simp[hs] at h₁
           exact Fin.ext_iff.mp h₁.symm
-        rw[this] at sp
+        rw[this,hv] at sp
         exact sp
 
       Except.ok {
@@ -1098,28 +1098,28 @@ private def Area.Paths.fromPathStarts {area : Area} (starts : Area.PathStarts ar
     north_valid := λn h₁ ↦ by
       have : (starts.north.get (Option.isSome_map.subst $ (Option.isSome_iff_exists.mpr ⟨n,h₁⟩).symm).symm).fst.current = n.steps.getLast n.list_not_empty :=
         let ⟨w, h₁⟩ := Option.map_eq_some'.mp h₁
-        by simp only [h₁.left, Option.get_some, ←h₁.right, List.getLast_singleton]
+        by simp only [toPathsPart, h₁.left, Option.get_some, ←h₁.right, List.getLast_singleton]
       have h₂ := (starts.north.get (Option.isSome_map.subst $ (Option.isSome_iff_exists.mpr ⟨n,h₁⟩).symm).symm).snd.snd
       simp[this] at h₂
       assumption
     east_valid := λe h₁ ↦ by
       have : (starts.east.get (Option.isSome_map.subst $ (Option.isSome_iff_exists.mpr ⟨e,h₁⟩).symm).symm).fst.current = e.steps.getLast e.list_not_empty :=
         let ⟨w, h₁⟩ := Option.map_eq_some'.mp h₁
-        by simp only [h₁.left, Option.get_some, ←h₁.right, List.getLast_singleton]
+        by simp only [toPathsPart, h₁.left, Option.get_some, ←h₁.right, List.getLast_singleton]
       have h₂ := (starts.east.get (Option.isSome_map.subst $ (Option.isSome_iff_exists.mpr ⟨e,h₁⟩).symm).symm).snd.snd
       simp[this] at h₂
       assumption
     south_valid := λs h₁ ↦ by
       have : (starts.south.get (Option.isSome_map.subst $ (Option.isSome_iff_exists.mpr ⟨s,h₁⟩).symm).symm).fst.current = s.steps.getLast s.list_not_empty :=
         let ⟨w, h₁⟩ := Option.map_eq_some'.mp h₁
-        by simp only [h₁.left, Option.get_some, ←h₁.right, List.getLast_singleton]
+        by simp only [toPathsPart, h₁.left, Option.get_some, ←h₁.right, List.getLast_singleton]
       have h₂ := (starts.south.get (Option.isSome_map.subst $ (Option.isSome_iff_exists.mpr ⟨s,h₁⟩).symm).symm).snd.snd
       simp[this] at h₂
       assumption
     west_valid := λw h₁ ↦ by
       have : (starts.west.get (Option.isSome_map.subst $ (Option.isSome_iff_exists.mpr ⟨w,h₁⟩).symm).symm).fst.current = w.steps.getLast w.list_not_empty :=
         let ⟨w, h₁⟩ := Option.map_eq_some'.mp h₁
-        by simp only [h₁.left, Option.get_some, ←h₁.right, List.getLast_singleton]
+        by simp only [toPathsPart, h₁.left, Option.get_some, ←h₁.right, List.getLast_singleton]
       have h₂ := (starts.west.get (Option.isSome_map.subst $ (Option.isSome_iff_exists.mpr ⟨w,h₁⟩).symm).symm).snd.snd
       simp[this] at h₂
       assumption
@@ -1331,7 +1331,7 @@ macro "def_Area.ClosedPath.from" fn:ident ":" p1:term ", "  p2:term " : " p3:ter
         steps := n2 :: ns
         connected := hc₂
       }
-      have h₂ : area.are_connected (a.steps.head a.list_not_empty) (e.steps.head e.list_not_empty) := by simp[hn₁]; simp[hn₁] at h₁; exact h₁▸(hc₁.symm)
+      have h₂ : area.are_connected (a.steps.head a.list_not_empty) (e.steps.head e.list_not_empty) := by simp[hn₁] at h₁; exact h₁▸(hc₁.symm)
       ⟨Area.PathsPart.join area a e h₂, ⟨Area.PathsPart.join_b_last_head area a e h₂, Area.PathsPart.join_a_last_last area a e h₂⟩⟩
   --Area.PathsPart.tail_connect_start
   {

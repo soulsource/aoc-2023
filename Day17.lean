@@ -280,8 +280,7 @@ instance : Finite (PathNode heatLossMap) where
     rewrite (occs := .pos [2]) [←Function.comp_assoc]
     simp only[Finite.nth_inverse_enumerate, Function.id_comp, PathNode.ofTuple_inv_toTuple]
 
-instance : LeanAStar.AStarNode (PathNode heatLossMap) where
-  Costs := Nat
+instance : LeanAStar.AStarNode (PathNode heatLossMap) Nat where
   costsLe := Nat.ble
   costs_order := ⟨BinaryHeap.nat_ble_to_heap_transitive_le, BinaryHeap.nat_ble_to_heap_le_total⟩
   remaining_costs_heuristic := PathNode.estimateMinimumCostToGoal

@@ -103,7 +103,7 @@ instance [ToString Element] : ToString (MaybeEmptyRectangularGrid Element) where
         have : x + e.width *y < e.elements.size := by
           simp[Membership.mem, inferInstance, Std.instMembershipNatRange] at h₁ h₂
           rw[e.size_valid]
-          exact Nat.two_d_coordinate_to_index_lt_size h₁ h₂
+          exact Nat.two_d_coordinate_to_index_lt_size h₁.right.left h₂.right.left
         r := r ++ (ToString.toString e.elements[x+e.width*y])
     r
 
