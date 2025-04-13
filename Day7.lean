@@ -119,8 +119,8 @@ def parse (input : String) : Except String (List Player) := do
 
 def part1 (players : List Player) : Nat :=
   players.quicksortBy (λ p q ↦ p.hand < q.hand)
-  |> List.enumFrom 1
-  |> List.foldl (λ r p ↦ p.fst * p.snd.bet + r) 0
+  |> (List.zipIdx · 1)
+  |> List.foldl (λ r p ↦ p.snd * p.fst.bet + r) 0
 
 
 ------------------------------------------------------------------------------------------------------
@@ -194,8 +194,8 @@ def part2 (players : List Player) : Nat :=
   let players := players.map λ p ↦
     {bet := p.bet, hand2 := p.hand.toHand2 : Player2}
   players.quicksortBy (λ p q ↦ p.hand2 < q.hand2)
-  |> List.enumFrom 1
-  |> List.foldl (λ r p ↦ p.fst * p.snd.bet + r) 0
+  |> (List.zipIdx · 1)
+  |> List.foldl (λ r p ↦ p.snd * p.fst.bet + r) 0
 
 ----------------------------------------------------------------------------------------------------
 open DayPart

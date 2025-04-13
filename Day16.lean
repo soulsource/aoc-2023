@@ -267,7 +267,7 @@ private theorem SeenExitDirections.countExitDirections_increasesWhenSet {table :
   unfold Parsing.RectangularGrid.Coordinate.toIndex at h₁ ⊢
   unfold Array.set
   simp[←Array.foldl_toList] at h₁ ⊢
-  rw[Array.getElem_eq_getElem_toList] at h₁ ⊢
+  rw[←Array.getElem_toList] at h₁ ⊢
   apply countExitDirections_increasesWhenSet_Aux
   assumption
 

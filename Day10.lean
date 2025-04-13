@@ -1017,7 +1017,7 @@ private def noSolution {area : Area} : (List $ Area.PathHead area) → Bool
 
 section ListMonad
 local instance : Monad List where
-  bind := List.flatMap
+  bind := flip List.flatMap
   pure := List.singleton
 
 def part1 (area : Area) : List Nat := do
@@ -1470,7 +1470,7 @@ section ListMonad
 -- We can do this here without perf issues. The list in question will never have more than 2 elements.
 local instance : Monad List where
   pure := List.singleton
-  bind := List.flatMap
+  bind := flip List.flatMap
 
 private inductive WestEastFoldState (area : Area)
 | inside : Coordinate area.width area.height → WestEastFoldState area
